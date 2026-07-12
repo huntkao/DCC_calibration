@@ -126,6 +126,7 @@ void apply_auto_layout(ImGuiID dockspace_id) {
   ImGui::DockBuilderDockWindow("RAW 檢視", center);
   ImGui::DockBuilderDockWindow("區域檢視", center_right);
   ImGui::DockBuilderDockWindow("結果總覽", right);
+  ImGui::DockBuilderDockWindow("報告", right);  // 與總覽同節點成分頁
   ImGui::DockBuilderDockWindow("Log 主控台", bottom);
   ImGui::DockBuilderFinish(dockspace_id);
 }
@@ -166,6 +167,10 @@ int main(int argc, char** argv) {
 
   dcc::gui::GuiState state;
   state.cfg = dcc::io::load_config(dcc::io::default_config_json());
+  state.file_logger = dcc::io::Logger::create("logs");
+  if (state.file_logger)
+    state.log_add(dcc::gui::LogLevel::info,
+                  "檔案 log:" + state.file_logger->base_path() + ".{log,jsonl}");
   load_cjk_font(state);
 
   ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -202,6 +207,38 @@ int main(int argc, char** argv) {
     }
 
     if (ImGui::BeginMainMenuBar()) {
+      if (ImGui::BeginMenu("檔案")) {
+        if (ImGui::MenuItem("儲存 Session(session.json)")) state.save_session("session.json");
+        if (ImGui::MenuItem("載入 Session")) state.load_session("session.json");
+        ImGui::EndMenu();
+      }
+      if (ImGui::BeginMenu("診斷")) {
+        ImGui::TextDisabled("錯誤情境演練(設定 Sim 參數後自動重跑)");
+        if (ImGui::MenuItem("E-D03:角落區有效樣本不足")) {
+          state.null_frames = 3; state.dirty = true;
+        }
+        if (ImGui::MenuItem("E-E01:L/R 顛倒(斜率為負)")) {
+          state.spec.center_dcc = -12.46; state.spec.corner_dcc = -14.5; state.dirty = true;
+        }
+        if (ImGui::MenuItem("E-F01:合焦出界(640)")) {
+          state.spec.focus_center = 640.0; state.dirty = true;
+        }
+        if (ImGui::MenuItem("E-F02:誤差超容差(峰值偏移 100)")) {
+          state.spec.focus_peak_offset = 100.0; state.dirty = true;
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("還原標準情境")) {
+          const auto keep_dacs = state.spec.dacs;
+          state.spec = dcc::sim::SynthSpec{};
+          state.spec.dacs = keep_dacs;
+          state.null_frames = 0;
+          state.fine_grid = false;
+          state.dirty = true;
+        }
+        ImGui::Separator();
+        ImGui::TextDisabled("E-A01/C01/D01/D02/G01 由測試套件覆蓋(UT-01/02/08)");
+        ImGui::EndMenu();
+      }
       if (ImGui::BeginMenu("檢視")) {
         if (ImGui::MenuItem("自動排版(依操作動線)")) want_layout = true;
         ImGui::Separator();

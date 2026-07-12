@@ -59,6 +59,17 @@ std::string build_report_json(const dcc::io::AppConfig& cfg, const RunResult& re
     r["worst"].push_back({{"r", rr}, {"c", cc}, {"err", w.err}});
   }
   j["warnings"] = res.warnings;
+
+  // 具名錯誤紀錄(SPEC-004 §5 errors[]):判定 FAIL → E-F02(非中止型)。
+  j["errors"] = json::array();
+  if (!res.pass) {
+    int n_fail = 0;
+    for (const auto& reg : res.regions)
+      if (!reg.pass) ++n_fail;
+    j["errors"].push_back({{"code", "E-F02"},
+                           {"phase", "F"},
+                           {"msg", "誤差超容差:" + std::to_string(n_fail) + " 區 err >= tolerance"}});
+  }
   return j.dump(2);
 }
 
@@ -82,17 +93,24 @@ std::string build_report_md(const dcc::io::AppConfig& cfg, const RunResult& res)
 }
 
 SessionOutcome run_session(const dcc::io::AppConfig& cfg, const std::string& disp_seq_json,
-                           const std::string& out_dir) {
+                           const std::string& out_dir, dcc::io::Logger* logger) {
   namespace fs = std::filesystem;
   SessionOutcome out;
   // 前期 gain map:SimNvm 平坦值透傳(13×17)。
   const std::vector<double> flat_gain(221, 1.0);
 
+  if (logger) logger->log("info", "A", "", "run 開始,config_hash=" + cfg.hash);
   try {
     const RunResult res = run(cfg, disp_seq_json, flat_gain, flat_gain);
     out.completed = true;
     out.pass = res.pass;
     out.report_json = build_report_json(cfg, res);
+    if (logger) {
+      for (const auto& w : res.warnings) logger->log("warn", "E", "", w);
+      logger->log("info", "G", res.pass ? "" : "E-F02",
+                  std::string("run 完成:") + (res.pass ? "PASS" : "FAIL(誤差超容差)") +
+                      ",module=" + res.module_id);
+    }
     if (!out_dir.empty()) {
       fs::create_directories(out_dir);
       write_file(fs::path(out_dir) / "report.json", out.report_json);
@@ -105,6 +123,11 @@ SessionOutcome run_session(const dcc::io::AppConfig& cfg, const std::string& dis
     // 鐵律 4:先落盤現場資料再回報。
     out.error_code = to_string(e.code());
     out.error_msg = e.what();
+    if (logger) {
+      // phase 由錯誤碼字首推得(E-A.. → A)。
+      const std::string phase = out.error_code.size() > 2 ? out.error_code.substr(2, 1) : "-";
+      logger->log("error", phase, out.error_code, out.error_msg);
+    }
     if (!out_dir.empty()) {
       fs::create_directories(out_dir);
       json dump;

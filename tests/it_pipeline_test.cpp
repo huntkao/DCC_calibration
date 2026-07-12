@@ -149,6 +149,14 @@ TEST_CASE("focus_peak_offset:err == |offset|/span,tolerance 判定正確(FR-14 �
   REQUIRE_FALSE(bad.pass);
   REQUIRE(bad.regions[0].err > 0.20);
   REQUIRE_FALSE(bad.regions[0].pass);
+
+  // 判定 FAIL 須以 E-F02 記入報告 errors[](SPEC-004 §5)。
+  const auto rep = nlohmann::json::parse(dcc::app::build_report_json(cfg, bad));
+  REQUIRE(rep["errors"].size() == 1);
+  REQUIRE(rep["errors"][0]["code"] == "E-F02");
+  const auto rep_ok = nlohmann::json::parse(
+      dcc::app::build_report_json(cfg, run_with_offset(48.0)));
+  REQUIRE(rep_ok["errors"].empty());
 }
 
 TEST_CASE("sim::pretty:縮排輸出為合法 JSON 且與原始內容等值", "[sim][pretty]") {

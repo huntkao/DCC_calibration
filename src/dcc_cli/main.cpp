@@ -5,7 +5,10 @@
 // 結束碼:0 = PASS、1 = 判定 FAIL、2 = 中止(E-xx)、3 = 參數錯誤。
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <string>
+
+#include "dcc_io/logging.hpp"
 
 #include "dcc_app/pipeline.hpp"
 #include "dcc_app/session.hpp"
@@ -104,7 +107,10 @@ int main(int argc, char** argv) {
     }
 
     const char* out_dir = arg_value(argc, argv, "--out");
-    const auto outcome = dcc::app::run_session(cfg, seq_json, out_dir ? out_dir : "");
+    std::unique_ptr<dcc::io::Logger> logger;
+    if (out_dir) logger = dcc::io::Logger::create(std::string(out_dir) + "/logs");
+    const auto outcome =
+        dcc::app::run_session(cfg, seq_json, out_dir ? out_dir : "", logger.get());
 
     if (!outcome.completed) {
       std::fprintf(stderr, "中止:%s — %s\n", outcome.error_code.c_str(),

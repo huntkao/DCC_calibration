@@ -41,4 +41,9 @@ data/     raw/(擷取暫存)、output/(報告)——實作後啟用
       log 主控台;含 DCC/err heatmap、逐區回歸圖、focus 曲線(啟動:`./build/src/dcc_gui/dcc_gui`)
 - [x] M1c 視覺化補完:靈敏度掃描面板 + CLI `--scan`(開放問題 #3 工具落地)、
       heatmap 選區高亮/區域快速切換、RAW 檢視器(縮放平移/DN 探針/PD 疊層/區格聯動)
-- [ ] M1d 強固化:全 E-code 演練、session 存讀、report 檢視、離線重算
+- [x] M1d 強固化:結構化 logging(.log 繁中 + .jsonl)、config 序列化一致性閉環
+      (UI 編輯必經驗證器、hash 隨值更新)、session 存讀(檔案選單)、
+      診斷選單 E-code 演練、report 檢視器(E-F02 入 errors[])
+
+**M1 完成(2026-07-13)**:56 測試全綠;`dcc_cal` CLI 與 `dcc_gui` 桌面工作台
+能力等價;待使用者驗收後進入 M2(硬體整合)。

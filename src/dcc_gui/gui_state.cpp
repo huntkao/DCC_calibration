@@ -1,13 +1,22 @@
 #include "gui_state.hpp"
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 
+#include <nlohmann/json.hpp>
+
+#include "dcc_app/session.hpp"
 #include "dcc_core/error.hpp"
 #include "dcc_core/sweep.hpp"
 
 namespace dcc::gui {
 
 void GuiState::log_add(LogLevel lv, std::string msg) {
+  if (file_logger) {
+    const char* names[] = {"info", "warn", "error"};
+    file_logger->log(names[static_cast<int>(lv)], "", "", msg);
+  }
   log.push_back({lv, std::move(msg)});
   if (log.size() > 2000) log.erase(log.begin(), log.begin() + 500);  // ring buffer
 }
@@ -19,6 +28,10 @@ void GuiState::regenerate_and_run() {
   error_msg.clear();
 
   try {
+    // 一致性閉環:UI 編輯過的 config 序列化後重過同一驗證器
+    // (非法組合 → E-A01),snapshot/hash 隨值刷新(報告可信)。
+    cfg = dcc::io::load_config(dcc::io::serialize_config(cfg));
+
     // Sim 參數與 config 對齊(單位/pitch/DAC 序列由 config 推導)。
     spec.dacs = dcc::sweep::plan(cfg.vcm, cfg.sweep);
     spec.pitch_x = cfg.pitch_x;
@@ -35,6 +48,7 @@ void GuiState::regenerate_and_run() {
     const std::vector<double> flat_gain(221, 1.0);  // SimNvm 透傳
     result = dcc::app::run(cfg, last_seq_json, flat_gain, flat_gain);
     has_result = true;
+    report_json = dcc::app::build_report_json(cfg, result);
 
     log_add(LogLevel::info,
             "管線完成:" + std::string(result.pass ? "PASS" : "FAIL") + ",sweep " +
@@ -97,6 +111,65 @@ void GuiState::run_scan() {
                               std::to_string(static_cast<int>(scan_range)) + " DAC),中止 " +
                               std::to_string(aborted) + " 點,nl=" +
                               std::to_string(spec.nonlinearity));
+}
+
+bool GuiState::save_session(const std::string& path) {
+  try {
+    nlohmann::json j;
+    j["version"] = 1;
+    j["config"] = nlohmann::json::parse(dcc::io::serialize_config(cfg));
+    auto& s = j["sim"];
+    s["noise_sigma"] = spec.noise_sigma;
+    s["bias"] = spec.bias;
+    s["seed"] = spec.seed;
+    s["focus_center"] = spec.focus_center;
+    s["center_dcc"] = spec.center_dcc;
+    s["corner_dcc"] = spec.corner_dcc;
+    s["nonlinearity"] = spec.nonlinearity;
+    s["focus_peak_offset"] = spec.focus_peak_offset;
+    s["fine_grid"] = fine_grid;
+    s["null_frames"] = null_frames;
+    j["scan"] = {{"range", scan_range}, {"steps", scan_steps}};
+    std::ofstream(path) << j.dump(2);
+    log_add(LogLevel::info, "session 已存:" + path);
+    return true;
+  } catch (const std::exception& e) {
+    log_add(LogLevel::error, std::string("session 存檔失敗:") + e.what());
+    return false;
+  }
+}
+
+bool GuiState::load_session(const std::string& path) {
+  try {
+    std::ifstream f(path);
+    if (!f) { log_add(LogLevel::warn, "session 檔不存在:" + path); return false; }
+    std::stringstream ss;
+    ss << f.rdbuf();
+    const auto j = nlohmann::json::parse(ss.str());
+
+    cfg = dcc::io::load_config(j.at("config").dump());  // 同一驗證器把關
+    const auto& s = j.at("sim");
+    spec.noise_sigma = s.value("noise_sigma", 0.0);
+    spec.bias = s.value("bias", 0.0);
+    spec.seed = s.value("seed", 0u);
+    spec.focus_center = s.value("focus_center", 420.0);
+    spec.center_dcc = s.value("center_dcc", 12.46);
+    spec.corner_dcc = s.value("corner_dcc", 14.5);
+    spec.nonlinearity = s.value("nonlinearity", 0.0);
+    spec.focus_peak_offset = s.value("focus_peak_offset", 0.0);
+    fine_grid = s.value("fine_grid", false);
+    null_frames = s.value("null_frames", 0);
+    if (j.contains("scan")) {
+      scan_range = j["scan"].value("range", 60.0);
+      scan_steps = j["scan"].value("steps", 25);
+    }
+    dirty = true;
+    log_add(LogLevel::info, "session 已載入:" + path);
+    return true;
+  } catch (const std::exception& e) {
+    log_add(LogLevel::error, std::string("session 載入失敗:") + e.what());
+    return false;
+  }
 }
 
 }  // namespace dcc::gui

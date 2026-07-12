@@ -48,4 +48,9 @@ AppConfig load_config_file(const std::string& path);
 // 內建預設 config(與 config/sensor_config_example.json 同值;dry-run 用)。
 const char* default_config_json();
 
+// 將(可能已被 UI 修改的)AppConfig 序列化回 schema v1 JSON:
+// 以原 snapshot 為底,覆寫可編輯欄位。與 load_config 構成一致性閉環——
+// UI 編輯值必經同一驗證器(非法組合照樣 E-A01),且 snapshot/hash 隨值更新。
+std::string serialize_config(const AppConfig& c);
+
 }  // namespace dcc::io

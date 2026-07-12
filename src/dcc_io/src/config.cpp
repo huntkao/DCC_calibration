@@ -110,6 +110,11 @@ AppConfig load_config(const std::string& json_text) {
       throw DccError(ErrorCode::E_A01, "disparity_unit 非法:" + *u);
   if (c.q_format < 4 || c.q_format > 8)
     throw DccError(ErrorCode::E_A01, "q_format 須在 4..8");
+  if (c.sweep.far_margin < 0.0 || c.sweep.far_margin > 0.2 || c.sweep.near_margin < 0.0 ||
+      c.sweep.near_margin > 0.2)
+    throw DccError(ErrorCode::E_A01, "far/near_margin 須在 0..0.2");
+  if (c.tolerance <= 0.0 || c.tolerance >= 1.0)
+    throw DccError(ErrorCode::E_A01, "tolerance 須在 (0,1)");
   if (c.grid_w != 8 || c.grid_h != 6)
     throw DccError(ErrorCode::E_A01, "grid 固定 8×6(v1)");
   if (c.sweep.num_positions != 10)
@@ -153,6 +158,33 @@ const char* default_config_json() {
     "focus": { "poly_order": 4, "peak_margin_steps": 1 },
     "aggregation": { "method": "median", "min_valid_ratio": 0.5 }
   })json";
+}
+
+std::string serialize_config(const AppConfig& c) {
+  json j = json::parse(c.snapshot);  // sensor 段(offsets 等)以原 snapshot 為準
+  j["vcm"]["af_cal_inf"] = c.vcm.af_cal_inf;
+  j["vcm"]["af_cal_macro"] = c.vcm.af_cal_macro;
+  j["vcm"]["dac_min"] = c.vcm.dac_min;
+  j["vcm"]["dac_max"] = c.vcm.dac_max;
+  auto& d = j["dcc"];
+  d["far_margin"] = c.sweep.far_margin;
+  d["near_margin"] = c.sweep.near_margin;
+  d["num_positions"] = c.sweep.num_positions;
+  d["grid_w"] = c.grid_w;
+  d["grid_h"] = c.grid_h;
+  d["q_format"] = c.q_format;
+  d["tolerance"] = c.tolerance;
+  d["min_valid_samples"] = c.min_valid_samples;
+  d["smooth_limit"] = c.smooth_limit;
+  d["r2_warn"] = c.r2_warn;
+  d["input_disparity_unit"] = c.input_disparity_unit;
+  d["output_disparity_unit"] = c.output_disparity_unit;
+  j["focus"]["poly_order"] = c.focus_poly_order;
+  j["focus"]["peak_margin_steps"] = c.peak_margin_steps;
+  j["aggregation"]["method"] =
+      (c.agg_method == dcc::aggregate::Method::weighted_mean) ? "weighted_mean" : "median";
+  j["aggregation"]["min_valid_ratio"] = c.min_valid_ratio;
+  return j.dump();
 }
 
 AppConfig load_config_file(const std::string& path) {

@@ -2,11 +2,13 @@
 // 解耦紀律:本層只呼叫 dcc_sim / dcc_app,不含任何演算法。
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "dcc_app/pipeline.hpp"
 #include "dcc_io/config.hpp"
+#include "dcc_io/logging.hpp"
 #include "dcc_io/raw_reader.hpp"
 #include "dcc_sim/synth.hpp"
 
@@ -34,6 +36,9 @@ struct GuiState {
   dcc::app::RunResult result;
   std::string error_code, error_msg;  // 中止時
   std::string last_seq_json;   // 最近一次生成之序列(存檔用)
+  std::string report_json;     // 最近一次完整報告(report 檢視器用)
+
+  std::unique_ptr<dcc::io::Logger> file_logger;  // 檔案 log(.log + .jsonl)
 
   // ── 靈敏度掃描(開放問題 #3:合焦偏移 vs DCC/err)────────────────────
   struct ScanPoint {
@@ -67,6 +72,9 @@ struct GuiState {
   void regenerate_and_run();
   // 以目前 Sim/config 參數執行合焦偏移掃描(±scan_range, scan_steps 點)。
   void run_scan();
+  // Session 存讀(config + Sim 參數 + 掃描設定;JSON)。
+  bool save_session(const std::string& path);
+  bool load_session(const std::string& path);
 };
 
 }  // namespace dcc::gui

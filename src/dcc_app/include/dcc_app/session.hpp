@@ -4,6 +4,7 @@
 #include <string>
 
 #include "dcc_app/pipeline.hpp"
+#include "dcc_io/logging.hpp"
 
 namespace dcc::app {
 
@@ -25,6 +26,6 @@ std::string build_report_md(const dcc::io::AppConfig& cfg, const RunResult& res)
 // 中止時落盤 abort_dump.json(config 快照 + 原始序列 + 錯誤),不上拋。
 // gain map 前期以 SimNvm 平坦值(1.0×221)透傳。
 SessionOutcome run_session(const dcc::io::AppConfig& cfg, const std::string& disp_seq_json,
-                           const std::string& out_dir);
+                           const std::string& out_dir, dcc::io::Logger* logger = nullptr);
 
 }  // namespace dcc::app

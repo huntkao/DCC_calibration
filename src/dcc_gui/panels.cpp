@@ -12,6 +12,7 @@
 #include <imgui.h>
 #include <implot.h>
 
+#include "dcc_app/session.hpp"
 #include "dcc_io/config.hpp"
 #include "dcc_io/raw_reader.hpp"
 
@@ -542,6 +543,53 @@ void draw_scan(GuiState& s) {
   ImGui::End();
 }
 
+// ── 報告檢視器(report.json 快照 + 落盤)─────────────────────────────────
+void draw_report(GuiState& s) {
+  ImGui::Begin("報告");
+  if (s.report_json.empty()) {
+    ImGui::TextDisabled("尚無報告(管線完成後自動生成)");
+    ImGui::End();
+    return;
+  }
+  static char out_dir[256] = "data/output/SIM0001";
+  ImGui::SetNextItemWidth(280);
+  ImGui::InputText("##outdir", out_dir, sizeof(out_dir));
+  ImGui::SameLine();
+  const auto do_write = [&]() {
+    namespace fs = std::filesystem;
+    fs::create_directories(out_dir);
+    std::ofstream(std::string(out_dir) + "/report.json") << s.report_json;
+    std::ofstream(std::string(out_dir) + "/report.md")
+        << dcc::app::build_report_md(s.cfg, s.result);
+    std::ofstream blk(std::string(out_dir) + "/block.bin", std::ios::binary);
+    blk.write(reinterpret_cast<const char*>(s.result.block.data()),
+              static_cast<std::streamsize>(s.result.block.size()));
+    s.log_add(LogLevel::info, std::string("報告已落盤:") + out_dir +
+                                  "/report.{json,md} + block.bin");
+  };
+  if (ImGui::Button("報告落盤")) {
+    if (std::filesystem::exists(std::string(out_dir) + "/report.json"))
+      ImGui::OpenPopup("報告覆寫確認");
+    else do_write();
+  }
+  if (ImGui::BeginPopupModal("報告覆寫確認", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::Text("目錄已有 report.json:\n%s\n\n確定覆寫?", out_dir);
+    ImGui::Separator();
+    if (ImGui::Button("覆寫", ImVec2(120, 0))) { do_write(); ImGui::CloseCurrentPopup(); }
+    ImGui::SameLine();
+    if (ImGui::Button("取消", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
+  ImGui::SameLine();
+  ImGui::TextDisabled("(%zu bytes)", s.report_json.size());
+
+  ImGui::BeginChild("reportscroll", ImVec2(0, 0), ImGuiChildFlags_Borders,
+                    ImGuiWindowFlags_HorizontalScrollbar);
+  ImGui::TextUnformatted(s.report_json.c_str());
+  ImGui::EndChild();
+  ImGui::End();
+}
+
 // ── Log 主控台 ──────────────────────────────────────────────────────────
 void draw_log(GuiState& s) {
   ImGui::Begin("Log 主控台");
@@ -582,6 +630,7 @@ void draw_all(GuiState& s) {
   draw_region_detail(s);
   draw_raw_view(s);
   draw_scan(s);
+  draw_report(s);
   draw_log(s);
 }
 

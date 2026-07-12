@@ -16,3 +16,5 @@ __pycache__/
 # C++ build
 build/
 imgui.ini
+logs/
+session.json
