@@ -234,14 +234,14 @@ void draw_maps(GuiState& s) {
     fail[i] = errv[i] >= s.cfg.tolerance ? 1 : 0;
     n_fail += fail[i];
   }
-  // 綠色系 colormap(合格 = 綠;超差以紅色覆蓋,綠紅對比一眼可辨)。
-  static const ImPlotColormap greens = [] {
-    static const ImVec4 g[] = {{0.95f, 0.98f, 0.95f, 1.0f}, {0.76f, 0.90f, 0.76f, 1.0f},
-                               {0.52f, 0.79f, 0.54f, 1.0f}, {0.28f, 0.64f, 0.33f, 1.0f},
-                               {0.09f, 0.47f, 0.20f, 1.0f}, {0.01f, 0.32f, 0.12f, 1.0f}};
-    return ImPlot::AddColormap("DccGreens", g, 6, false);
+  // 嚴重度 colormap:深綠(安全)→ 淺綠 → 黃(逼近 tolerance);超差由紅色覆蓋。
+  static const ImPlotColormap severity = [] {
+    static const ImVec4 g[] = {{0.01f, 0.32f, 0.12f, 1.0f}, {0.09f, 0.47f, 0.20f, 1.0f},
+                               {0.30f, 0.64f, 0.33f, 1.0f}, {0.58f, 0.80f, 0.45f, 1.0f},
+                               {0.84f, 0.90f, 0.42f, 1.0f}, {0.96f, 0.84f, 0.22f, 1.0f}};
+    return ImPlot::AddColormap("DccErrSeverity", g, 6, false);
   }();
-  ImPlot::PushColormap(greens);
+  ImPlot::PushColormap(severity);
   heatmap_plot(s, "err(tolerance 檢核)", errv, 0.0, s.cfg.tolerance, "%.3f", &fail);
   ImPlot::PopColormap();
   ImGui::Text("點擊格子選擇區域;目前:(r=%d, c=%d)。紅色 = err ≥ tolerance(%d 區)",
