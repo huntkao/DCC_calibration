@@ -21,6 +21,8 @@ FetchContent_MakeAvailable(nlohmann_json)
 
 add_subdirectory(src/dcc_core)
 add_subdirectory(src/dcc_io)
+add_subdirectory(src/dcc_app)
+add_subdirectory(src/dcc_cli)
 
 option(DCC_BUILD_TESTS "Build unit tests (SPEC-005 UT-01..10)" ON)
 if(DCC_BUILD_TESTS)

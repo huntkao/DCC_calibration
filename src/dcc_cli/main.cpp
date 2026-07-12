@@ -1,0 +1,87 @@
+// dcc_cal — DCC 校正離線 CLI(解耦試金石:GUI 能做的這裡都能做)。
+// 用法:
+//   dcc_cal --dry-run [--out DIR] [--sigma S] [--bias B] [--seed N] [--focus-center D]
+//   dcc_cal --seq disp_seq.json [--config config.json] [--out DIR]
+// 結束碼:0 = PASS、1 = 判定 FAIL、2 = 中止(E-xx)、3 = 參數錯誤。
+#include <cstdio>
+#include <cstring>
+#include <string>
+
+#include "dcc_app/session.hpp"
+#include "dcc_core/sweep.hpp"
+#include "dcc_io/config.hpp"
+#include "dcc_io/synth.hpp"
+
+namespace {
+
+const char* arg_value(int argc, char** argv, const char* key) {
+  for (int i = 1; i + 1 < argc; ++i)
+    if (std::strcmp(argv[i], key) == 0) return argv[i + 1];
+  return nullptr;
+}
+
+bool has_flag(int argc, char** argv, const char* key) {
+  for (int i = 1; i < argc; ++i)
+    if (std::strcmp(argv[i], key) == 0) return true;
+  return false;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  try {
+    const bool dry_run = has_flag(argc, argv, "--dry-run");
+    const char* seq_path = arg_value(argc, argv, "--seq");
+    if (!dry_run && !seq_path) {
+      std::fprintf(stderr,
+                   "用法:dcc_cal --dry-run [--out DIR] [--sigma S --bias B --seed N "
+                   "--focus-center D]\n"
+                   "      dcc_cal --seq disp_seq.json [--config config.json] [--out DIR]\n");
+      return 3;
+    }
+
+    const char* cfg_path = arg_value(argc, argv, "--config");
+    const dcc::io::AppConfig cfg = cfg_path ? dcc::io::load_config_file(cfg_path)
+                                            : dcc::io::load_config(dcc::io::default_config_json());
+
+    std::string seq_json;
+    if (dry_run) {
+      dcc::io::synth::SynthSpec spec;
+      spec.dacs = dcc::sweep::plan(cfg.vcm, cfg.sweep);
+      spec.pitch_x = cfg.pitch_x;
+      spec.unit = cfg.input_disparity_unit;
+      if (const char* v = arg_value(argc, argv, "--sigma")) spec.noise_sigma = std::stod(v);
+      if (const char* v = arg_value(argc, argv, "--bias")) spec.bias = std::stod(v);
+      if (const char* v = arg_value(argc, argv, "--seed")) spec.seed = static_cast<unsigned>(std::stoul(v));
+      if (const char* v = arg_value(argc, argv, "--focus-center")) spec.focus_center = std::stod(v);
+      seq_json = dcc::io::synth::generate(spec);
+      std::printf("[dry-run] 合成序列:σ=%.3f bias=%.3f seed=%u 合焦=%.1f\n", spec.noise_sigma,
+                  spec.bias, spec.seed, spec.focus_center);
+    } else {
+      seq_json.clear();
+      FILE* f = std::fopen(seq_path, "rb");
+      if (!f) { std::fprintf(stderr, "無法開啟序列檔:%s\n", seq_path); return 3; }
+      char buf[65536];
+      size_t got;
+      while ((got = std::fread(buf, 1, sizeof(buf), f)) > 0) seq_json.append(buf, got);
+      std::fclose(f);
+    }
+
+    const char* out_dir = arg_value(argc, argv, "--out");
+    const auto outcome = dcc::app::run_session(cfg, seq_json, out_dir ? out_dir : "");
+
+    if (!outcome.completed) {
+      std::fprintf(stderr, "中止:%s — %s\n", outcome.error_code.c_str(),
+                   outcome.error_msg.c_str());
+      if (out_dir) std::fprintf(stderr, "現場資料已落盤:%s/abort_dump.json\n", out_dir);
+      return 2;
+    }
+    std::printf("模組判定:%s\n", outcome.pass ? "PASS" : "FAIL");
+    if (out_dir)
+      std::printf("輸出:%s/report.json、report.md、block.bin\n", out_dir);
+    return outcome.pass ? 0 : 1;
+  } catch (const std::exception& e) {
+    std::fprintf(stderr, "錯誤:%s\n", e.what());
+    return 2;
+  }
+}

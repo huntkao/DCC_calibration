@@ -8,72 +8,10 @@
     "pattern_period_x": 32,
     "pattern_period_y": 32,
     "pd_left_offsets": [
-      [
-        4,
-        3
-      ],
-      [
-        20,
-        3
-      ],
-      [
-        4,
-        11
-      ],
-      [
-        20,
-        11
-      ],
-      [
-        4,
-        19
-      ],
-      [
-        20,
-        19
-      ],
-      [
-        4,
-        27
-      ],
-      [
-        20,
-        27
-      ]
+      [4, 3], [20, 3], [4, 11], [20, 11], [4, 19], [20, 19], [4, 27], [20, 27]
     ],
     "pd_right_offsets": [
-      [
-        8,
-        3
-      ],
-      [
-        24,
-        3
-      ],
-      [
-        8,
-        11
-      ],
-      [
-        24,
-        11
-      ],
-      [
-        8,
-        19
-      ],
-      [
-        24,
-        19
-      ],
-      [
-        8,
-        27
-      ],
-      [
-        24,
-        27
-      ]
+      [8, 3], [24, 3], [8, 11], [24, 11], [8, 19], [24, 19], [8, 27], [24, 27]
     ],
     "orientation": "canonical (flip/mirror off)"
   },
@@ -86,17 +24,31 @@
     "settle_time_ms": 30
   },
   "dcc": {
-    "far_margin": 0.0,
-    "near_margin": 0.0,
+    "far_margin": 0.1,
+    "near_margin": 0.1,
     "num_positions": 10,
     "grid_w": 8,
     "grid_h": 6,
     "q_format": 6,
     "tolerance": 0.2,
-    "disparity_unit": "raw_pixel",
-    "_comment_disparity_unit": "raw_pixel 或 pd_image_grid。全流程(校正/PDLIB)必須一致,pd_image_grid 換 raw_pixel 需乘水平 pitch 16"
+    "min_valid_samples": 8,
+    "smooth_limit": 0.25,
+    "r2_warn": 0.98,
+    "input_disparity_unit": "raw_pixel",
+    "output_disparity_unit": "raw_pixel",
+    "_comment_units": "input = 外部 SAD 序列之單位(讀取端轉 raw_pixel);output = runtime PDLIB 期望單位(打包端轉換,待開放問題 #2 定案)。pd_image_grid 換 raw_pixel 乘水平 pitch 16"
+  },
+  "focus": {
+    "poly_order": 4,
+    "peak_margin_steps": 1
+  },
+  "aggregation": {
+    "method": "median",
+    "min_valid_ratio": 0.5,
+    "_comment": "外部 SAD 粒度 != 8x6 時之聚合;method: median | weighted_mean(以 quality 加權)"
   },
   "exposure": {
+    "_comment": "[M2/外部參考] 離線模式不使用;像素域檢查由外部擷取模組承擔",
     "pd_min_lsb": 300,
     "pd_max_lsb": 950,
     "roi_center_pct": 10,
