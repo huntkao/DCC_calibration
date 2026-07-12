@@ -14,9 +14,10 @@ namespace dcc::gui {
 
 namespace {
 
-constexpr ImVec4 kPassCol{0.20f, 0.75f, 0.35f, 1.0f};
-constexpr ImVec4 kFailCol{0.90f, 0.25f, 0.25f, 1.0f};
-constexpr ImVec4 kWarnCol{0.95f, 0.75f, 0.20f, 1.0f};
+// 狀態色(淡色主題下維持高對比)。
+constexpr ImVec4 kPassCol{0.05f, 0.55f, 0.22f, 1.0f};
+constexpr ImVec4 kFailCol{0.80f, 0.10f, 0.10f, 1.0f};
+constexpr ImVec4 kWarnCol{0.72f, 0.48f, 0.00f, 1.0f};
 
 bool slider_d(const char* label, double* v, float lo, float hi, const char* fmt = "%.2f") {
   float f = static_cast<float>(*v);
