@@ -161,9 +161,10 @@ void draw_overview(GuiState& s) {
   ImGui::End();
 }
 
-// ── Heatmap(DCC / err;點擊選區)────────────────────────────────────────
+// ── Heatmap(DCC / err;點擊選區;fail_mask = 超差區黑框)────────────────
 void heatmap_plot(GuiState& s, const char* title, const std::vector<double>& vals,
-                  double vmin, double vmax, const char* fmt) {
+                  double vmin, double vmax, const char* fmt,
+                  const std::vector<char>* fail_mask = nullptr) {
   if (ImPlot::BeginPlot(title, ImVec2(-1, 260),
                         ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
     ImPlot::SetupAxes(nullptr, nullptr,
@@ -172,6 +173,18 @@ void heatmap_plot(GuiState& s, const char* title, const std::vector<double>& val
     ImPlot::SetupAxesLimits(0, 8, 0, 6, ImGuiCond_Always);
     ImPlot::PlotHeatmap(title, vals.data(), 6, 8, vmin, vmax, fmt, ImPlotPoint(0, 0),
                         ImPlotPoint(8, 6));
+
+    if (fail_mask) {  // 超過 tolerance 之區以黑色粗框標示(顏色梯度難辨時的硬指標)
+      ImPlot::PushPlotClipRect();
+      for (size_t i = 0; i < fail_mask->size(); ++i) {
+        if (!(*fail_mask)[i]) continue;
+        const int r = static_cast<int>(i) / 8, c = static_cast<int>(i) % 8;
+        const ImVec2 fa = ImPlot::PlotToPixels(ImPlotPoint(c, 5 - r));
+        const ImVec2 fb = ImPlot::PlotToPixels(ImPlotPoint(c + 1, 6 - r));
+        ImPlot::GetPlotDrawList()->AddRect(fa, fb, IM_COL32(0, 0, 0, 255), 0.0f, 0, 3.5f);
+      }
+      ImPlot::PopPlotClipRect();
+    }
     if (ImPlot::IsPlotHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
       const ImPlotPoint p = ImPlot::GetPlotMousePos();
       const int col = static_cast<int>(std::floor(p.x));
@@ -205,10 +218,17 @@ void draw_maps(GuiState& s) {
   ImPlot::PushColormap(ImPlotColormap_Viridis);
   heatmap_plot(s, "DCC [DAC/raw_px]", dccv, dmin, dmax, "%.2f");
   ImPlot::PopColormap();
+  std::vector<char> fail(48);
+  int n_fail = 0;
+  for (size_t i = 0; i < 48; ++i) {
+    fail[i] = errv[i] >= s.cfg.tolerance ? 1 : 0;
+    n_fail += fail[i];
+  }
   ImPlot::PushColormap(ImPlotColormap_Hot);
-  heatmap_plot(s, "err(tolerance 檢核)", errv, 0.0, s.cfg.tolerance, "%.3f");
+  heatmap_plot(s, "err(tolerance 檢核)", errv, 0.0, s.cfg.tolerance, "%.3f", &fail);
   ImPlot::PopColormap();
-  ImGui::Text("點擊格子選擇區域;目前:(r=%d, c=%d)", s.sel_r, s.sel_c);
+  ImGui::Text("點擊格子選擇區域;目前:(r=%d, c=%d)。黑框 = err ≥ tolerance(%d 區)",
+              s.sel_r, s.sel_c, n_fail);
   ImGui::End();
 }
 
@@ -242,7 +262,8 @@ void draw_region_detail(GuiState& s) {
   }
 
   if (ImPlot::BeginPlot("回歸:DAC = k·disp + b", ImVec2(-1, 240))) {
-    ImPlot::SetupAxes("disparity [raw px]", "DAC");
+    ImPlot::SetupAxes("disparity [raw px]", "DAC", ImPlotAxisFlags_AutoFit,
+                      ImPlotAxisFlags_AutoFit);
     ImPlot::PlotScatter("樣本", xs.data(), ys.data(), static_cast<int>(xs.size()));
     if (xs.size() >= 2) {
       const double x0 = *std::min_element(xs.begin(), xs.end());
@@ -257,7 +278,7 @@ void draw_region_detail(GuiState& s) {
     ImPlot::EndPlot();
   }
   if (ImPlot::BeginPlot("focus 曲線與峰值", ImVec2(-1, 240))) {
-    ImPlot::SetupAxes("DAC", "focus value");
+    ImPlot::SetupAxes("DAC", "focus value", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
     ImPlot::PlotLine("fv", fx.data(), fy.data(), static_cast<int>(n));
     const double peak = reg.focus_peak;
     ImPlot::PlotInfLines("peak", &peak, 1);
@@ -483,14 +504,16 @@ void draw_scan(GuiState& s) {
                 static_cast<int>(s.scan.size()), aborted, worst_dpct);
 
     if (ImPlot::BeginPlot("ΔDCC vs 合焦偏移", ImVec2(-1, 220))) {
-      ImPlot::SetupAxes("合焦偏移 [DAC]", "中央 DCC 變化 [%]");
+      ImPlot::SetupAxes("合焦偏移 [DAC]", "中央 DCC 變化 [%]", ImPlotAxisFlags_AutoFit,
+                        ImPlotAxisFlags_AutoFit);
       ImPlot::PlotLine("ΔDCC%", xs.data(), dpct.data(), static_cast<int>(xs.size()));
       const double one[2] = {1.0, -1.0};  // ±1% 參考線
       ImPlot::PlotInfLines("±1%", one, 2, ImPlotInfLinesFlags_Horizontal);
       ImPlot::EndPlot();
     }
     if (ImPlot::BeginPlot("最大區域 err vs 合焦偏移", ImVec2(-1, 220))) {
-      ImPlot::SetupAxes("合焦偏移 [DAC]", "max err");
+      ImPlot::SetupAxes("合焦偏移 [DAC]", "max err", ImPlotAxisFlags_AutoFit,
+                        ImPlotAxisFlags_AutoFit);
       ImPlot::PlotLine("max err", xs.data(), merr.data(), static_cast<int>(xs.size()));
       const double tol = s.cfg.tolerance;
       ImPlot::PlotInfLines("tolerance", &tol, 1, ImPlotInfLinesFlags_Horizontal);

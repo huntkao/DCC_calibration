@@ -156,6 +156,8 @@ int main(int argc, char** argv) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImPlot::CreateContext();
+  // auto-fit 時上下左右各留 10% 邊距,避免資料點/曲線貼邊被遮。
+  ImPlot::GetStyle().FitPadding = ImVec2(0.10f, 0.10f);
   ImGuiIO& io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
 
