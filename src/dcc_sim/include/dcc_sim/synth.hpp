@@ -22,6 +22,9 @@ struct SynthSpec {
   double bias = 0.0;                  // disparity 系統偏差 [raw_px]
   double nonlinearity = 0.0;          // 二階非線性:disp ×= (1 + nl·(dac−fc)/240);
                                       // 0 = 理想線性(此時 DCC 對合焦偏移不敏感)
+  double focus_peak_offset = 0.0;     // focus 峰值相對 disparity 合焦點之系統性偏移 [DAC]
+                                      // (模擬場曲/chart 傾斜/PD vs 對比合焦分歧;
+                                      //  err = |offset|/span,offset 96 → err 0.20 踩線)
   unsigned seed = 0;                  // 雜訊種子(確定性)
   std::vector<std::tuple<int, int, int>> null_cells;  // (frame, r, c) → null
   bool with_quality = false;          // 輸出 quality 面(定值 1.0)

@@ -60,6 +60,9 @@ void draw_sim_panel(GuiState& s) {
   ch |= slider_d("中央 DCC 真值", &s.spec.center_dcc, 8.0f, 20.0f);
   ch |= slider_d("角落 DCC 真值", &s.spec.corner_dcc, 8.0f, 20.0f);
   ch |= slider_d("非線性 nl(視差二階項)", &s.spec.nonlinearity, 0.0f, 0.2f, "%.3f");
+  ch |= slider_d("focus 峰值偏移 [DAC]", &s.spec.focus_peak_offset, -120.0f, 120.0f, "%.0f");
+  ImGui::SameLine();
+  ImGui::TextDisabled("(err 演練:±96 → err 0.20 踩線)");
   ch |= ImGui::Checkbox("以 144×108 細粒度輸出(行使 D-5 聚合)", &s.fine_grid);
   ch |= ImGui::SliderInt("角落區 (5,7) null 幀數", &s.null_frames, 0, 5);
   ImGui::SameLine();

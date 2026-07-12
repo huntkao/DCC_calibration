@@ -49,8 +49,9 @@ std::string generate(const SynthSpec& s) {
     for (int r = 0; r < s.grid_h; ++r) {
       json drow = json::array(), frow = json::array(), qrow = json::array();
       for (int c = 0; c < s.grid_w; ++c) {
-        // focus:以 focus_center 為峰之高斯(全區同型)。
-        const double t = (dac - s.focus_center) / 240.0;
+        // focus:以 focus_center + focus_peak_offset 為峰之高斯(全區同型);
+        // offset ≠ 0 時 b 與 peak 系統性分歧 → 演練 err/tolerance 機制。
+        const double t = (dac - s.focus_center - s.focus_peak_offset) / 240.0;
         frow.push_back(1000.0 * std::exp(-t * t));
         if (s.with_quality) qrow.push_back(1.0);
 

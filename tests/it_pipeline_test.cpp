@@ -128,6 +128,29 @@ TEST_CASE("OQ#3 靈敏度:非線性 nl=0.05 下,合焦偏移 ±40 DAC 使中央 
   REQUIRE(std::fabs(100.0 * (m_lin - m_lin0) / m_lin0) < 0.1);
 }
 
+TEST_CASE("focus_peak_offset:err == |offset|/span,tolerance 判定正確(FR-14 演練)",
+          "[fr14][sensitivity]") {
+  const auto cfg = app_cfg();
+  const std::vector<double> flat(221, 1.0);
+
+  const auto run_with_offset = [&](double off) {
+    auto spec = base_spec(cfg);
+    spec.focus_peak_offset = off;
+    return dcc::app::run(cfg, generate(spec), flat, flat);
+  };
+
+  // offset 48 → err = 48/480 = 0.10 < 0.20 → PASS。
+  const auto ok = run_with_offset(48.0);
+  REQUIRE(ok.pass);
+  REQUIRE(std::fabs(ok.regions[0].err - 0.10) < 0.01);
+
+  // offset 100 → err ≈ 0.208 ≥ 0.20 → 全區 FAIL → 模組 FAIL(不中止,是判定)。
+  const auto bad = run_with_offset(100.0);
+  REQUIRE_FALSE(bad.pass);
+  REQUIRE(bad.regions[0].err > 0.20);
+  REQUIRE_FALSE(bad.regions[0].pass);
+}
+
 TEST_CASE("sim::pretty:縮排輸出為合法 JSON 且與原始內容等值", "[sim][pretty]") {
   const auto cfg = app_cfg();
   auto spec = base_spec(cfg);
