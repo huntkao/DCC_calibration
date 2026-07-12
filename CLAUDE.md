@@ -12,11 +12,12 @@ EEPROM 實體燒錄皆由外部模組承擔,本工具消費外部之 disparity/f
 RAW 由外部擷取模組提供,本工具**唯讀**載入作互動式 UI 底圖(不參與計算、不得寫入)。
 介面保留待 M2 對接。所有 Phase 參數必須可由 config 設定。
 
-## 目前狀態:M0 規格階段(尚未寫程式)
+## 目前狀態:M1 開發階段(M0 已凍結 2026-07-12)
 
-**規格未凍結前,不要主動產生實作程式碼。** 目前工作是:
-review/細化 specs/、關閉 SPEC-005 §7 的開放問題。
-使用者明確指示進入 M1 後,才依 SPEC-003 分層建立程式骨架。
+實作語言 **C++17**;GUI = Dear ImGui(docking)+ ImPlot + ImGuiTexInspect(vendored);
+測試 = Catch2;建置 = CMake。開發順序:先寫測試(UT-01..10)再實作;
+CLI 自 M1a 起即存在(解耦試金石);dry-run(IT-01)綠了才碰硬體層。
+規格變更仍走 spec 勘誤流程(改檔 + 頂部 revision 一行)。
 
 ## 必讀順序(動手前)
 
@@ -34,8 +35,9 @@ review/細化 specs/、關閉 SPEC-005 §7 的開放問題。
    乘 `pitch_x`(範例模組 = 16);打包端依 `output_disparity_unit` 轉出。
    單位轉換全案僅此兩處。DCC 單位固定 DAC/raw_pixel、無號正值。
    任何跨模組函式 docstring 首行必須標注輸入/輸出單位。
-2. **分層**:core/ 純 NumPy 演算法,不得 import hal/ 或做 I/O;
-   硬體(馬達/擷取/NVM)一律走 SPEC-003 §4 的介面注入,合成模式用 Sim*。
+2. **分層**:dcc_core/ 純 C++ 演算法(無 I/O、無 UI、無執行緒),不依賴任何其他層;
+   依賴方向嚴格單向 gui/cli → app → io/hal → core;
+   硬體(馬達/擷取/NVM)一律走 SPEC-003 §4 的介面注入,前期僅 Sim*。
 3. **掃描方向**:FAR→NEAR 單向,不可參數反轉(VCM 磁滯)。
 4. **失敗處置**:任何中止都要先落盤現場資料(序列快照、DispGrid、參數快照),
    錯誤用 SPEC-001 §3 的具名錯誤碼(滾動式清單)。
@@ -67,13 +69,16 @@ review/細化 specs/、關閉 SPEC-005 §7 的開放問題。
   **不得引用外部資源(字型/CDN)**,一律系統字型。
 - Commit 風格:`M0:`/`M1:` 前綴標里程碑;規格改動用 `spec:`。
 
-## 進入 M1 時的骨架(規格凍結後才建)
+## M1 骨架(C++17,依 SPEC-003 分層)
 
 ```
-src/dcc_cal/{config,sweep,disparity_io,regression,focus,validate,eeprom,synth}.py
-hal/{motor,capture,nvm}.py(前期僅 sim 實作)
-tools/run_calibration.py(--dry-run 走合成序列)
-tests/ 對映 SPEC-005 UT-01..09
+src/dcc_core/  sweep, units, aggregate, regression, focus, validate, eeprom_codec
+src/dcc_io/    config, disp_seq_reader, raw_reader, report, eeprom, logging
+src/dcc_hal/   motor, capture, nvm 介面 + Sim* 實作
+src/dcc_app/   session_controller(狀態機、失效傳播、背景重算、快照)
+src/dcc_cli/   run_calibration(--dry-run 走合成序列)
+src/dcc_gui/   ImGui(docking)+ ImPlot + ImGuiTexInspect(vendored)
+tests/         Catch2,對映 SPEC-005 UT-01..10
 ```
 先寫測試(UT 表格是現成的驗收準則),再實作;dry-run(IT-01)綠了才碰硬體層。
 (pd_extract/gain/disparity 演算法已移轉外部模組,不在骨架內。)

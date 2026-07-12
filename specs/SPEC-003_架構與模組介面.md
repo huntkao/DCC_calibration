@@ -2,19 +2,25 @@
 
 > rev 2026-07-11:新增 io.disparity_reader(離線主要輸入);pd_extract/disparity 契約移轉外部模組;hal 前期僅 Sim 實作;regression fitter 明訂可抽換。
 > rev 2026-07-11(2):新增 io.raw_reader(RAW 唯讀,UI 底圖);disparity_io 納入粒度聚合;tools 層明訂互動式 UI。
+> rev 2026-07-12:M0 凍結後之實作決議勘誤——實作語言 C++17;分層改為 C++ 模組(新增 dcc_app 層);前端技術選型:GUI = Dear ImGui(docking)+ ImPlot + ImGuiTexInspect(vendored),測試 = Catch2。
 
 > 本文件定義「介面契約」——簽名、單位、前後置條件;不含實作。
 
-## 1. 分層
+## 1. 分層(C++17)
 
 ```
-┌─ tools/  CLI / 互動式 UI 前端(操作流程、報告呈現、RAW 底圖顯示)
-├─ core/   純演算法(NumPy;無 I/O、無硬體;可離線重算)
-├─ hal/    硬體抽象(馬達、擷取、NVM)——介面注入;前期僅 Sim* 實作
-└─ io/     config / log / 報告 / EEPROM 讀寫 / disparity 序列讀取 / RAW 唯讀載入
+┌─ dcc_gui/   ImGui 桌面前端 ─┐ 僅:發命令、讀快照、繪製
+├─ dcc_cli/   CLI 前端       ─┘(兩前端同源、能力等價)
+├─ dcc_app/   SessionController:Phase 狀態機、config 失效傳播、
+│             背景重算(可取消)、不可變快照發布
+├─ dcc_io/    config / log / 報告 / EEPROM / disp_seq 讀取 / RAW 唯讀
+├─ dcc_hal/   硬體抽象(馬達、擷取、NVM)——介面注入;前期僅 Sim* 實作
+└─ dcc_core/  純演算法(無 I/O、無 UI、無執行緒;可離線重算)
 ```
 
-規則:core 不得 import hal;所有單位換算集中在 core.units(§3)。
+規則:依賴方向嚴格單向 gui/cli → app → io/hal → core;
+dcc_core 不依賴任何其他層;所有單位換算集中在 core units(§3)。
+UI 與演算法完全解耦:GUI 做得到的操作,CLI 必須也做得到(解耦試金石)。
 
 ## 2. 核心資料結構(語意定義)
 
@@ -79,6 +85,18 @@ validate.judge(intercept, peaks, span, tol) -> (bool, ErrMap)
 
 eeprom.pack(gainL, gainR, dcc, q) -> bytes;eeprom.verify(blob) -> bool
 ```
+
+## 5a. dcc_app 契約(SessionController,參數一致性之守門)
+
+```
+SessionController:
+  set_config(cfg) -> None      # 產生新版本+hash;依失效傳播圖將下游 Phase 標 dirty
+  run(phase | all) / cancel()  # 背景執行緒重算;可取消
+  snapshot() -> ResultSnapshot # 不可變快照(附 config_hash);dirty 期間前端須顯示 stale
+```
+- 每個 Phase 產物攜帶「產生它的 config_hash」;快照為原子性發布,
+  前端永遠不會讀到新舊參數混合之結果(計算一致性保證)。
+- report 落盤必含 config 快照 + hash → 離線重算 bit-exact(IT-06)之依據。
 
 ## 6. 錯誤處理策略
 - core 以具名例外(對映錯誤碼)上拋;tools 層轉為操作員訊息 + log。

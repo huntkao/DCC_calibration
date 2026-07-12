@@ -9,7 +9,7 @@
 
 | 層級 | 對象 | 環境 |
 |---|---|---|
-| UT 單元 | core / io 各函式契約 | pytest,合成序列 |
+| UT 單元 | core / io 各函式契約 | Catch2(C++),合成序列 |
 | IT 整合 | Phase 串接(A→G,離線) | Sim 序列 dry-run |
 | HT 硬體 | 真實模組 [M2] | 校正治具 |
 | AT 驗收 | NFR + 產線情境 [M3] | 產線 |
