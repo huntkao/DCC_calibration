@@ -8,10 +8,12 @@
 #include <filesystem>
 #include <fstream>
 
+#include <GLFW/glfw3.h>  // GL 紋理上傳(RAW 檢視)
 #include <imgui.h>
 #include <implot.h>
 
 #include "dcc_io/config.hpp"
+#include "dcc_io/raw_reader.hpp"
 
 namespace dcc::gui {
 
@@ -264,6 +266,142 @@ void draw_region_detail(GuiState& s) {
   ImGui::End();
 }
 
+// ── RAW 檢視(FR-18:唯讀底圖;縮放平移 + DN 探針 + PD/區格疊層)─────────
+// 假設模組之 PD offsets(與 config 範例一致;M2 對接後改由 config 提供)。
+constexpr int kPdL[8][2] = {{4, 3}, {20, 3}, {4, 11}, {20, 11}, {4, 19}, {20, 19}, {4, 27}, {20, 27}};
+constexpr int kPdR[8][2] = {{8, 3}, {24, 3}, {8, 11}, {24, 11}, {8, 19}, {24, 19}, {8, 27}, {24, 27}};
+
+int pd_type(int x, int y) {  // 0=一般、1=L、2=R
+  const int mx = x % 32, my = y % 32;
+  for (const auto& p : kPdL)
+    if (p[0] == mx && p[1] == my) return 1;
+  for (const auto& p : kPdR)
+    if (p[0] == mx && p[1] == my) return 2;
+  return 0;
+}
+
+void upload_raw_texture(GuiState& s) {
+  if (!s.raw_loaded) return;
+  const int w = s.raw.width, h = s.raw.height;
+  const double lo = s.raw_lo, hi = std::max(s.raw_lo + 1, s.raw_hi);
+  std::vector<unsigned char> rgba(static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
+  for (size_t i = 0; i < s.raw.pixels.size(); ++i) {
+    double v = (s.raw.pixels[i] - lo) / (hi - lo);
+    v = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
+    const auto g = static_cast<unsigned char>(v * 255.0 + 0.5);
+    rgba[i * 4 + 0] = g; rgba[i * 4 + 1] = g; rgba[i * 4 + 2] = g; rgba[i * 4 + 3] = 255;
+  }
+  if (s.raw_tex == 0) glGenTextures(1, &s.raw_tex);
+  glBindTexture(GL_TEXTURE_2D, s.raw_tex);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);  // 高倍率下像素銳利
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+  s.raw_tex_stale = false;
+}
+
+void draw_raw_view(GuiState& s) {
+  ImGui::Begin("RAW 檢視");
+  if (ImGui::Button("生成示範 RAW")) {
+    dcc::sim::RawSpec rs;
+    rs.width = s.cfg.sensor_width;
+    rs.height = s.cfg.sensor_height;
+    s.raw.width = rs.width;
+    s.raw.height = rs.height;
+    s.raw.pixels = dcc::sim::generate_raw(rs);
+    s.raw_loaded = true;
+    s.raw_tex_stale = true;
+    s.log_add(LogLevel::info, "示範 RAW 已生成(" + std::to_string(rs.width) + "×" +
+                                  std::to_string(rs.height) + ",10-bit)");
+  }
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(320);
+  ImGui::InputText("##rawpath", s.raw_path, sizeof(s.raw_path));
+  ImGui::SameLine();
+  if (ImGui::Button("載入 RAW")) {
+    auto img = dcc::io::load_raw(s.raw_path, s.cfg.sensor_width, s.cfg.sensor_height);
+    if (img) {
+      s.raw = std::move(*img);
+      s.raw_loaded = true;
+      s.raw_tex_stale = true;
+      s.log_add(LogLevel::info, std::string("RAW 已載入:") + s.raw_path);
+    } else {
+      s.log_add(LogLevel::warn, std::string("RAW 載入失敗(缺檔或尺寸不符),降級顯示:") +
+                                    s.raw_path);
+    }
+  }
+
+  int range[2] = {s.raw_lo, s.raw_hi};
+  if (ImGui::DragIntRange2("對比拉伸 [DN]", &range[0], &range[1], 2, 0, 1023)) {
+    s.raw_lo = range[0]; s.raw_hi = range[1]; s.raw_tex_stale = true;
+  }
+  ImGui::SameLine(); ImGui::Checkbox("區格線", &s.raw_show_grid);
+  ImGui::SameLine(); ImGui::Checkbox("PD 疊層", &s.raw_show_pd);
+
+  if (!s.raw_loaded) {
+    ImGui::TextDisabled("尚未載入 RAW(可按「生成示範 RAW」)");
+    ImGui::End();
+    return;
+  }
+  if (s.raw_tex_stale) upload_raw_texture(s);
+
+  const double W = s.raw.width, H = s.raw.height;
+  if (ImPlot::BeginPlot("##rawplot", ImVec2(-1, -1), ImPlotFlags_Equal)) {
+    ImPlot::SetupAxis(ImAxis_X1, "x [px]");
+    ImPlot::SetupAxis(ImAxis_Y1, "y [px]", ImPlotAxisFlags_Invert);  // row0 在上
+    ImPlot::SetupAxesLimits(0, W, 0, H, ImGuiCond_Once);
+    ImPlot::PlotImage("##raw", static_cast<ImTextureID>(static_cast<intptr_t>(s.raw_tex)),
+                      ImPlotPoint(0, 0), ImPlotPoint(W, H));
+
+    if (s.raw_show_grid) {  // 8×6 區格線
+      double xs[7], ys[5];
+      for (int k = 1; k < 8; ++k) xs[k - 1] = W * k / 8.0;
+      for (int k = 1; k < 6; ++k) ys[k - 1] = H * k / 6.0;
+      ImPlot::PlotInfLines("##gx", xs, 7);
+      ImPlot::PlotInfLines("##gy", ys, 5, ImPlotInfLinesFlags_Horizontal);
+    }
+
+    // 高倍率時疊 PD 像素位置(視野 < 700 px 才畫,避免點數爆炸)。
+    const ImPlotRect lim = ImPlot::GetPlotLimits();
+    if (s.raw_show_pd && (lim.X.Max - lim.X.Min) < 700.0 && (lim.Y.Max - lim.Y.Min) < 700.0) {
+      std::vector<double> lx, ly, rx, ry;
+      const int x0 = std::max(0, static_cast<int>(lim.X.Min) / 32 * 32);
+      const int y0 = std::max(0, static_cast<int>(lim.Y.Min) / 32 * 32);
+      for (int by = y0; by < lim.Y.Max && by < H; by += 32)
+        for (int bx = x0; bx < lim.X.Max && bx < W; bx += 32)
+          for (int i = 0; i < 8; ++i) {
+            lx.push_back(bx + kPdL[i][0] + 0.5); ly.push_back(by + kPdL[i][1] + 0.5);
+            rx.push_back(bx + kPdR[i][0] + 0.5); ry.push_back(by + kPdR[i][1] + 0.5);
+          }
+      ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, ImVec4(0.15f, 0.45f, 0.95f, 0.85f));
+      ImPlot::PlotScatter("PD L", lx.data(), ly.data(), static_cast<int>(lx.size()));
+      ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, ImVec4(0.90f, 0.20f, 0.20f, 0.85f));
+      ImPlot::PlotScatter("PD R", rx.data(), ry.data(), static_cast<int>(rx.size()));
+    }
+
+    if (ImPlot::IsPlotHovered()) {  // DN 探針
+      const ImPlotPoint p = ImPlot::GetPlotMousePos();
+      const int px = static_cast<int>(p.x), py = static_cast<int>(p.y);
+      if (px >= 0 && px < s.raw.width && py >= 0 && py < s.raw.height) {
+        const std::uint16_t dn =
+            s.raw.pixels[static_cast<size_t>(py) * static_cast<size_t>(s.raw.width) +
+                         static_cast<size_t>(px)];
+        const int t = pd_type(px, py);
+        ImGui::BeginTooltip();
+        ImGui::Text("(%d, %d)  DN=%u%s", px, py, dn,
+                    t == 1 ? "  [PD L]" : (t == 2 ? "  [PD R]" : ""));
+        ImGui::Text("區 (r=%d, c=%d)", py / (s.raw.height / 6), px / (s.raw.width / 8));
+        ImGui::EndTooltip();
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {  // 雙擊選區
+          s.sel_r = py / (s.raw.height / 6);
+          s.sel_c = px / (s.raw.width / 8);
+        }
+      }
+    }
+    ImPlot::EndPlot();
+  }
+  ImGui::End();
+}
+
 // ── 靈敏度掃描(開放問題 #3:合焦偏移 vs DCC/err)────────────────────────
 void draw_scan(GuiState& s) {
   ImGui::Begin("靈敏度掃描");
@@ -349,6 +487,7 @@ void draw_all(GuiState& s) {
   draw_overview(s);
   draw_maps(s);
   draw_region_detail(s);
+  draw_raw_view(s);
   draw_scan(s);
   draw_log(s);
 }

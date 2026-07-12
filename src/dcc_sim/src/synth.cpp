@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <random>
 
 #include <nlohmann/json.hpp>
@@ -103,6 +104,46 @@ std::string pretty(const std::string& compact_json) {
   }
   out += "\n}\n";
   return out;
+}
+
+
+std::vector<std::uint16_t> generate_raw(const RawSpec& s) {
+  // PD 位置查表(單一 pattern 週期)。
+  std::vector<std::uint8_t> pd_mask(static_cast<size_t>(s.period_x) * static_cast<size_t>(s.period_y), 0);
+  for (const auto& [x, y] : s.pd_left)
+    pd_mask[static_cast<size_t>(y) * static_cast<size_t>(s.period_x) + static_cast<size_t>(x)] = 1;
+  for (const auto& [x, y] : s.pd_right)
+    pd_mask[static_cast<size_t>(y) * static_cast<size_t>(s.period_x) + static_cast<size_t>(x)] = 2;
+
+  std::mt19937 rng(s.seed);
+  std::uniform_real_distribution<double> jitter(-3.0, 3.0);
+
+  const double cx = 0.5 * s.width, cy = 0.5 * s.height;
+  const double r_norm = 1.0 / (cx * cx + cy * cy);
+  std::vector<std::uint16_t> px(static_cast<size_t>(s.width) * static_cast<size_t>(s.height));
+
+  for (int y = 0; y < s.height; ++y) {
+    for (int x = 0; x < s.width; ++x) {
+      // 垂直線紋理:兩個非諧和弦波混合(SPEC-005 §2 精神)。
+      const double t1 = 0.5 + 0.5 * std::sin(2.0 * 3.14159265358979 * x / 37.0);
+      const double t2 = 0.5 + 0.5 * std::sin(2.0 * 3.14159265358979 * x / 61.7);
+      const double tex = 0.55 * t1 + 0.45 * t2;
+      const double dx = x - cx, dy = y - cy;
+      const double vig = 1.0 - 0.22 * (dx * dx + dy * dy) * r_norm;  // 輕微 vignette
+      double dn = s.black_level + 80.0 + tex * 700.0 * vig + jitter(rng);
+
+      const size_t mi = static_cast<size_t>(y % s.period_y) * static_cast<size_t>(s.period_x) +
+                        static_cast<size_t>(x % s.period_x);
+      if (pd_mask[mi] != 0)  // metal-shield 遮光
+        dn = s.black_level + (dn - s.black_level) * s.pd_attenuation;
+
+      if (dn < 0.0) dn = 0.0;
+      if (dn > 1023.0) dn = 1023.0;
+      px[static_cast<size_t>(y) * static_cast<size_t>(s.width) + static_cast<size_t>(x)] =
+          static_cast<std::uint16_t>(std::lround(dn));
+    }
+  }
+  return px;
 }
 
 }  // namespace dcc::sim

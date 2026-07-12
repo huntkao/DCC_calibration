@@ -7,6 +7,7 @@
 
 #include "dcc_app/pipeline.hpp"
 #include "dcc_io/config.hpp"
+#include "dcc_io/raw_reader.hpp"
 #include "dcc_sim/synth.hpp"
 
 namespace dcc::gui {
@@ -45,6 +46,16 @@ struct GuiState {
   double scan_range = 60.0;    // ±offset [DAC]
   int scan_steps = 25;
   std::vector<ScanPoint> scan;
+
+  // ── RAW 檢視(FR-18:唯讀底圖,不入計算路徑)─────────────────────────
+  dcc::io::RawImage raw;
+  bool raw_loaded = false;
+  unsigned raw_tex = 0;         // GL texture id(panels 層管理)
+  bool raw_tex_stale = false;   // 對比/內容變更 → 需重新上傳
+  int raw_lo = 64, raw_hi = 900;  // 對比拉伸視窗 [DN]
+  bool raw_show_grid = true;    // 8×6 區格線疊層
+  bool raw_show_pd = true;      // PD 像素疊層(高倍率時)
+  char raw_path[512] = "data/raw/";
 
   // ── UI 雜項 ─────────────────────────────────────────────────────────
   int sel_r = 2, sel_c = 3;    // 區域檢視選擇

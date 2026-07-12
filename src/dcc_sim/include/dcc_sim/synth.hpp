@@ -37,4 +37,22 @@ std::string generate(const SynthSpec& spec);
 // 人工可讀且不逐元素爆行;輸出與輸入為等值 JSON。
 std::string pretty(const std::string& compact_json);
 
+// ── 合成 RAW(UI 底圖展示/讀取器測試用;M2 後被實機 RAW 取代)──────────
+struct RawSpec {
+  int width = 4608, height = 3456;
+  int black_level = 64;                  // 10-bit,值域 0..1023
+  int period_x = 32, period_y = 32;      // PD pattern 週期
+  // 假設模組之 PD offsets(L/R 各 8 對)
+  std::vector<std::pair<int, int>> pd_left = {{4, 3}, {20, 3}, {4, 11}, {20, 11},
+                                              {4, 19}, {20, 19}, {4, 27}, {20, 27}};
+  std::vector<std::pair<int, int>> pd_right = {{8, 3}, {24, 3}, {8, 11}, {24, 11},
+                                               {8, 19}, {24, 19}, {8, 27}, {24, 27}};
+  double pd_attenuation = 0.45;          // metal-shield 遮光 → PD 像素較暗
+  unsigned seed = 0;
+};
+
+// 產生單張 RAW(uint16,row-major,值域 0..1023):
+// 垂直線紋理(混合弦波,避免週期病態)+ 輕微 vignette + PD 像素遮光。
+std::vector<std::uint16_t> generate_raw(const RawSpec& spec);
+
 }  // namespace dcc::sim
