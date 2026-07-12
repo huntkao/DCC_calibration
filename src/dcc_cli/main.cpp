@@ -10,7 +10,7 @@
 #include "dcc_app/session.hpp"
 #include "dcc_core/sweep.hpp"
 #include "dcc_io/config.hpp"
-#include "dcc_io/synth.hpp"
+#include "dcc_sim/synth.hpp"
 
 namespace {
 
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 
     std::string seq_json;
     if (dry_run) {
-      dcc::io::synth::SynthSpec spec;
+      dcc::sim::SynthSpec spec;
       spec.dacs = dcc::sweep::plan(cfg.vcm, cfg.sweep);
       spec.pitch_x = cfg.pitch_x;
       spec.unit = cfg.input_disparity_unit;
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
       if (const char* v = arg_value(argc, argv, "--bias")) spec.bias = std::stod(v);
       if (const char* v = arg_value(argc, argv, "--seed")) spec.seed = static_cast<unsigned>(std::stoul(v));
       if (const char* v = arg_value(argc, argv, "--focus-center")) spec.focus_center = std::stod(v);
-      seq_json = dcc::io::synth::generate(spec);
+      seq_json = dcc::sim::generate(spec);
       std::printf("[dry-run] 合成序列:σ=%.3f bias=%.3f seed=%u 合焦=%.1f\n", spec.noise_sigma,
                   spec.bias, spec.seed, spec.focus_center);
     } else {

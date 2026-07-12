@@ -14,6 +14,8 @@
 ├─ dcc_app/   SessionController:Phase 狀態機、config 失效傳播、
 │             背景重算(可取消)、不可變快照發布
 ├─ dcc_io/    config / log / 報告 / EEPROM / disp_seq 讀取 / RAW 唯讀
+├─ dcc_sim/   合成資料生成(獨立 library;與管線平行之「生產者」,
+│             產出與外部 SAD 模組同格式之序列;GUI Sim 工作台/靈敏度掃描後端)
 ├─ dcc_hal/   硬體抽象(馬達、擷取、NVM)——介面注入;前期僅 Sim* 實作
 └─ dcc_core/  純演算法(無 I/O、無 UI、無執行緒;可離線重算)
 ```

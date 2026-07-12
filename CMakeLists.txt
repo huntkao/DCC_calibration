@@ -21,6 +21,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 
 add_subdirectory(src/dcc_core)
 add_subdirectory(src/dcc_io)
+add_subdirectory(src/dcc_sim)
 add_subdirectory(src/dcc_app)
 add_subdirectory(src/dcc_cli)
 

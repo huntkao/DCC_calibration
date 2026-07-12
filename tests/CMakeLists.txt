@@ -19,7 +19,7 @@ add_executable(dcc_tests
   ut10_aggregate_test.cpp
   it_pipeline_test.cpp
 )
-target_link_libraries(dcc_tests PRIVATE dcc_app nlohmann_json::nlohmann_json
+target_link_libraries(dcc_tests PRIVATE dcc_app dcc_sim nlohmann_json::nlohmann_json
                                         Catch2::Catch2WithMain)
 target_include_directories(dcc_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 

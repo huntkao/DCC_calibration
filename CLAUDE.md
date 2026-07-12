@@ -74,6 +74,7 @@ CLI 自 M1a 起即存在(解耦試金石);dry-run(IT-01)綠了才碰硬體層。
 ```
 src/dcc_core/  sweep, units, aggregate, regression, focus, validate, eeprom_codec
 src/dcc_io/    config, disp_seq_reader, raw_reader, report, eeprom, logging
+src/dcc_sim/   synth(合成序列生成;獨立 library,GUI Sim 工作台後端)
 src/dcc_hal/   motor, capture, nvm 介面 + Sim* 實作
 src/dcc_app/   session_controller(狀態機、失效傳播、背景重算、快照)
 src/dcc_cli/   run_calibration(--dry-run 走合成序列)

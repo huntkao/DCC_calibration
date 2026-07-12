@@ -1,4 +1,4 @@
-#include "dcc_io/synth.hpp"
+#include "dcc_sim/synth.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -8,7 +8,7 @@
 
 #include "dcc_core/units.hpp"
 
-namespace dcc::io::synth {
+namespace dcc::sim {
 
 double true_dcc(int r, int c, int grid_w, int grid_h, double center_dcc, double corner_dcc) {
   // 正規化徑向距離(中心 0 → 角落 1),線性內插。
@@ -74,4 +74,4 @@ std::string generate(const SynthSpec& s) {
   return j.dump();
 }
 
-}  // namespace dcc::io::synth
+}  // namespace dcc::sim

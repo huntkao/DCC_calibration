@@ -7,7 +7,7 @@
 #include <tuple>
 #include <vector>
 
-namespace dcc::io::synth {
+namespace dcc::sim {
 
 struct SynthSpec {
   std::string module_id = "SIM0001";
@@ -31,4 +31,4 @@ double true_dcc(int r, int c, int grid_w, int grid_h, double center_dcc, double 
 // 生成 JSON 文字(可直接餵 disp_seq_reader 或落盤)。
 std::string generate(const SynthSpec& spec);
 
-}  // namespace dcc::io::synth
+}  // namespace dcc::sim

@@ -7,11 +7,11 @@
 #include "dcc_app/session.hpp"
 #include "dcc_core/sweep.hpp"
 #include "dcc_io/config.hpp"
-#include "dcc_io/synth.hpp"
+#include "dcc_sim/synth.hpp"
 
 namespace fs = std::filesystem;
-using dcc::io::synth::SynthSpec;
-using dcc::io::synth::true_dcc;
+using dcc::sim::SynthSpec;
+using dcc::sim::true_dcc;
 
 namespace {
 
