@@ -77,6 +77,7 @@ void apply_auto_layout(ImGuiID dockspace_id) {
   ImGui::DockBuilderDockWindow("Sim 工作台", left);
   ImGui::DockBuilderDockWindow("Config", left_bottom);
   ImGui::DockBuilderDockWindow("DCC / 誤差 map", center);
+  ImGui::DockBuilderDockWindow("靈敏度掃描", center);  // 與 map 同節點成分頁
   ImGui::DockBuilderDockWindow("區域檢視", center_right);
   ImGui::DockBuilderDockWindow("結果總覽", right);
   ImGui::DockBuilderDockWindow("Log 主控台", bottom);

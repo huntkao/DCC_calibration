@@ -88,6 +88,46 @@ TEST_CASE("IT-04: 合焦 640(> NEAR−step)之序列 → E-F01", "[it04]") {
   REQUIRE(out.error_code == "E-F01");
 }
 
+TEST_CASE("OQ#3 靈敏度:非線性 nl=0.05 下,合焦偏移 ±40 DAC 使中央 DCC 反向漂移",
+          "[oq3][sensitivity]") {
+  // 理論:k_fit ≈ k / (1 − 2·nl·Δ/240) → Δ=+40 時 ΔDCC ≈ +1.7%(nl=0.05)。
+  const auto cfg = app_cfg();
+  const std::vector<double> flat(221, 1.0);
+  const size_t centers[4] = {19, 20, 27, 28};
+
+  const auto central_at = [&](double offset) {
+    auto spec = base_spec(cfg);
+    spec.nonlinearity = 0.05;
+    spec.focus_center = 420.0 + offset;
+    const auto res = dcc::app::run(cfg, generate(spec), flat, flat);
+    double m = 0.0;
+    for (size_t i : centers) m += res.regions[i].dcc_raw_px;
+    return m / 4.0;
+  };
+
+  const double d0 = central_at(0.0);
+  const double dp = 100.0 * (central_at(+40.0) - d0) / d0;
+  const double dm = 100.0 * (central_at(-40.0) - d0) / d0;
+  REQUIRE(dp > 0.8);   // 正向偏移 → DCC 偏高(約 +1.7%)
+  REQUIRE(dp < 3.0);
+  REQUIRE(dm < -0.8);  // 反向對稱
+  REQUIRE(dm > -3.0);
+
+  // 對照:理想線性(nl=0)時應不敏感(<0.1%)。
+  auto lin = base_spec(cfg);
+  lin.focus_center = 460.0;
+  const auto res_lin = dcc::app::run(cfg, generate(lin), flat, flat);
+  double m_lin = 0.0;
+  for (size_t i : centers) m_lin += res_lin.regions[i].dcc_raw_px;
+  m_lin /= 4.0;
+  auto lin0 = base_spec(cfg);
+  const auto res_lin0 = dcc::app::run(cfg, generate(lin0), flat, flat);
+  double m_lin0 = 0.0;
+  for (size_t i : centers) m_lin0 += res_lin0.regions[i].dcc_raw_px;
+  m_lin0 /= 4.0;
+  REQUIRE(std::fabs(100.0 * (m_lin - m_lin0) / m_lin0) < 0.1);
+}
+
 TEST_CASE("sim::pretty:縮排輸出為合法 JSON 且與原始內容等值", "[sim][pretty]") {
   const auto cfg = app_cfg();
   auto spec = base_spec(cfg);

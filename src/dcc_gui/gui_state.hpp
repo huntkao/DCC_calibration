@@ -34,6 +34,18 @@ struct GuiState {
   std::string error_code, error_msg;  // 中止時
   std::string last_seq_json;   // 最近一次生成之序列(存檔用)
 
+  // ── 靈敏度掃描(開放問題 #3:合焦偏移 vs DCC/err)────────────────────
+  struct ScanPoint {
+    double offset = 0.0;       // 合焦偏移 [DAC]
+    double central_dcc = 0.0;  // 中央 4 區平均 DCC
+    double delta_pct = 0.0;    // 相對 offset=0 之 DCC 變化 [%]
+    double max_err = 0.0;      // 全區最大 err
+    std::string error;         // 中止時之 E-code(空 = 正常)
+  };
+  double scan_range = 60.0;    // ±offset [DAC]
+  int scan_steps = 25;
+  std::vector<ScanPoint> scan;
+
   // ── UI 雜項 ─────────────────────────────────────────────────────────
   int sel_r = 2, sel_c = 3;    // 區域檢視選擇
   std::vector<LogEntry> log;
@@ -42,6 +54,8 @@ struct GuiState {
   void log_add(LogLevel lv, std::string msg);
   // 重生成合成序列並執行管線;結果/錯誤寫回快照,清除 dirty。
   void regenerate_and_run();
+  // 以目前 Sim/config 參數執行合焦偏移掃描(±scan_range, scan_steps 點)。
+  void run_scan();
 };
 
 }  // namespace dcc::gui

@@ -1,5 +1,7 @@
 #include "gui_state.hpp"
 
+#include <algorithm>
+
 #include "dcc_core/error.hpp"
 #include "dcc_core/sweep.hpp"
 
@@ -48,6 +50,53 @@ void GuiState::regenerate_and_run() {
     error_msg = e.what();
     log_add(LogLevel::error, error_msg);
   }
+}
+
+void GuiState::run_scan() {
+  scan.clear();
+  const std::vector<double> flat_gain(221, 1.0);
+
+  // 掃描期間沿用目前 Sim 參數(σ/bias/nl/seed),僅平移合焦位置。
+  auto make_point = [&](double offset) {
+    ScanPoint p;
+    p.offset = offset;
+    try {
+      auto sc = spec;
+      sc.dacs = dcc::sweep::plan(cfg.vcm, cfg.sweep);
+      sc.pitch_x = cfg.pitch_x;
+      sc.unit = cfg.input_disparity_unit;
+      sc.focus_center = spec.focus_center + offset;
+      const auto res = dcc::app::run(cfg, dcc::sim::generate(sc), flat_gain, flat_gain);
+      const size_t centers[4] = {2 * 8 + 3, 2 * 8 + 4, 3 * 8 + 3, 3 * 8 + 4};
+      for (size_t i : centers) p.central_dcc += res.regions[i].dcc_raw_px;
+      p.central_dcc /= 4.0;
+      for (const auto& r : res.regions) p.max_err = std::max(p.max_err, r.err);
+    } catch (const dcc::DccError& e) {
+      p.error = dcc::to_string(e.code());
+    }
+    return p;
+  };
+
+  const ScanPoint base = make_point(0.0);
+  if (!base.error.empty()) {
+    log_add(LogLevel::error, "掃描基準點(offset=0)即中止:" + base.error);
+    return;
+  }
+  for (int i = 0; i < scan_steps; ++i) {
+    const double off = -scan_range + 2.0 * scan_range * static_cast<double>(i) /
+                                        static_cast<double>(scan_steps - 1);
+    ScanPoint p = make_point(off);
+    if (p.error.empty())
+      p.delta_pct = 100.0 * (p.central_dcc - base.central_dcc) / base.central_dcc;
+    scan.push_back(std::move(p));
+  }
+  int aborted = 0;
+  for (const auto& p : scan)
+    if (!p.error.empty()) ++aborted;
+  log_add(LogLevel::info, "靈敏度掃描完成:" + std::to_string(scan.size()) + " 點(±" +
+                              std::to_string(static_cast<int>(scan_range)) + " DAC),中止 " +
+                              std::to_string(aborted) + " 點,nl=" +
+                              std::to_string(spec.nonlinearity));
 }
 
 }  // namespace dcc::gui

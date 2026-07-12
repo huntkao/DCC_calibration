@@ -104,7 +104,11 @@
    `output_disparity_unit` 雙路徑皆實作並由 UT-09 覆蓋、report 雙單位記錄;
    定案時僅翻 config 值)
 3. 產線治具之 chart 距離公差 ±?cm 對 DCC 的靈敏度
-   —— **轉為 M1 後首批分析任務**(以合成序列生成器掃描合焦偏移 vs. DCC/截距)
+   —— **分析工具已落地(2026-07-12,M1c)**:GUI「靈敏度掃描」面板 +
+   CLI `--scan`(CSV 輸出);synth 支援二階非線性注入 `nl`。
+   已驗證:理想線性(nl=0)時 DCC 對合焦偏移完全不敏感;
+   nl=0.05 時靈敏度 ≈ 2·nl·Δ/240(+40 DAC → +1.7%,與理論一致)。
+   **最終關閉待實模組量測真實非線性量級**(掃描方法與判讀已備妥)
 4. EEPROM 實際 layout 與 v4 開發版差異(等 `PDAFCalibrationTools_EEPROM.h`)
    —— **延期至 M2 實體燒錄前關閉**(io.eeprom 為隔離模組;report.json 為
    資料真值來源,layout 換版可離線重打包,無需重跑校正)

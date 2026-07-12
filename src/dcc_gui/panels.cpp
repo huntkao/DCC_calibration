@@ -1,5 +1,6 @@
 #include "panels.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -55,6 +56,7 @@ void draw_sim_panel(GuiState& s) {
   ch |= slider_d("合焦位置 [DAC]", &s.spec.focus_center, 180.0f, 660.0f, "%.0f");
   ch |= slider_d("中央 DCC 真值", &s.spec.center_dcc, 8.0f, 20.0f);
   ch |= slider_d("角落 DCC 真值", &s.spec.corner_dcc, 8.0f, 20.0f);
+  ch |= slider_d("非線性 nl(視差二階項)", &s.spec.nonlinearity, 0.0f, 0.2f, "%.3f");
   ch |= ImGui::Checkbox("以 144×108 細粒度輸出(行使 D-5 聚合)", &s.fine_grid);
   ch |= ImGui::SliderInt("角落區 (5,7) null 幀數", &s.null_frames, 0, 5);
   ImGui::SameLine();
@@ -170,6 +172,12 @@ void heatmap_plot(GuiState& s, const char* title, const std::vector<double>& val
       const int row = 5 - static_cast<int>(std::floor(p.y));  // 畫面上排 = r0
       if (row >= 0 && row < 6 && col >= 0 && col < 8) { s.sel_r = row; s.sel_c = col; }
     }
+    // 選區高亮框。
+    ImPlot::PushPlotClipRect();
+    const ImVec2 a = ImPlot::PlotToPixels(ImPlotPoint(s.sel_c, 5 - s.sel_r));
+    const ImVec2 b = ImPlot::PlotToPixels(ImPlotPoint(s.sel_c + 1, 6 - s.sel_r));
+    ImPlot::GetPlotDrawList()->AddRect(a, b, IM_COL32(255, 70, 0, 255), 0.0f, 0, 2.5f);
+    ImPlot::PopPlotClipRect();
     ImPlot::EndPlot();
   }
 }
@@ -204,6 +212,12 @@ void draw_maps(GuiState& s) {
 void draw_region_detail(GuiState& s) {
   ImGui::Begin("區域檢視");
   if (!s.has_result) { ImGui::TextDisabled("尚無結果"); ImGui::End(); return; }
+
+  ImGui::SetNextItemWidth(120);
+  ImGui::SliderInt("r", &s.sel_r, 0, 5);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(120);
+  ImGui::SliderInt("c", &s.sel_c, 0, 7);
 
   const auto& res = s.result;
   const size_t ri = static_cast<size_t>(s.sel_r) * 8 + static_cast<size_t>(s.sel_c);
@@ -250,6 +264,53 @@ void draw_region_detail(GuiState& s) {
   ImGui::End();
 }
 
+// ── 靈敏度掃描(開放問題 #3:合焦偏移 vs DCC/err)────────────────────────
+void draw_scan(GuiState& s) {
+  ImGui::Begin("靈敏度掃描");
+  ImGui::TextWrapped("開放問題 #3:chart 距離(→ 合焦位置)偏移對 DCC 的靈敏度。"
+                     "沿用 Sim 工作台目前參數(σ/bias/nl/seed),僅平移合焦位置。"
+                     "注意:nl=0(理想線性)時 DCC 理論上不受偏移影響,"
+                     "請先於 Sim 工作台設定非線性 nl。");
+  float range = static_cast<float>(s.scan_range);
+  if (ImGui::SliderFloat("掃描範圍 ±[DAC]", &range, 10.0f, 200.0f, "%.0f"))
+    s.scan_range = static_cast<double>(range);
+  ImGui::SliderInt("掃描點數", &s.scan_steps, 9, 81);
+  if (ImGui::Button("執行掃描")) s.run_scan();
+
+  if (!s.scan.empty()) {
+    std::vector<double> xs, dpct, merr;
+    int aborted = 0;
+    double worst_dpct = 0.0;
+    for (const auto& p : s.scan) {
+      if (!p.error.empty()) { ++aborted; continue; }
+      xs.push_back(p.offset);
+      dpct.push_back(p.delta_pct);
+      merr.push_back(p.max_err);
+      worst_dpct = std::max(worst_dpct, std::fabs(p.delta_pct));
+    }
+    ImGui::Text("有效 %d / %d 點(中止 %d);|ΔDCC| 最大 %.2f%%", static_cast<int>(xs.size()),
+                static_cast<int>(s.scan.size()), aborted, worst_dpct);
+
+    if (ImPlot::BeginPlot("ΔDCC vs 合焦偏移", ImVec2(-1, 220))) {
+      ImPlot::SetupAxes("合焦偏移 [DAC]", "中央 DCC 變化 [%]");
+      ImPlot::PlotLine("ΔDCC%", xs.data(), dpct.data(), static_cast<int>(xs.size()));
+      const double one[2] = {1.0, -1.0};  // ±1% 參考線
+      ImPlot::PlotInfLines("±1%", one, 2, ImPlotInfLinesFlags_Horizontal);
+      ImPlot::EndPlot();
+    }
+    if (ImPlot::BeginPlot("最大區域 err vs 合焦偏移", ImVec2(-1, 220))) {
+      ImPlot::SetupAxes("合焦偏移 [DAC]", "max err");
+      ImPlot::PlotLine("max err", xs.data(), merr.data(), static_cast<int>(xs.size()));
+      const double tol = s.cfg.tolerance;
+      ImPlot::PlotInfLines("tolerance", &tol, 1, ImPlotInfLinesFlags_Horizontal);
+      ImPlot::EndPlot();
+    }
+  } else {
+    ImGui::TextDisabled("尚未執行掃描");
+  }
+  ImGui::End();
+}
+
 // ── Log 主控台 ──────────────────────────────────────────────────────────
 void draw_log(GuiState& s) {
   ImGui::Begin("Log 主控台");
@@ -288,6 +349,7 @@ void draw_all(GuiState& s) {
   draw_overview(s);
   draw_maps(s);
   draw_region_detail(s);
+  draw_scan(s);
   draw_log(s);
 }
 

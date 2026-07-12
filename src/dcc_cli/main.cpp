@@ -7,7 +7,9 @@
 #include <cstring>
 #include <string>
 
+#include "dcc_app/pipeline.hpp"
 #include "dcc_app/session.hpp"
+#include "dcc_core/error.hpp"
 #include "dcc_core/sweep.hpp"
 #include "dcc_io/config.hpp"
 #include "dcc_sim/synth.hpp"
@@ -54,6 +56,40 @@ int main(int argc, char** argv) {
       if (const char* v = arg_value(argc, argv, "--bias")) spec.bias = std::stod(v);
       if (const char* v = arg_value(argc, argv, "--seed")) spec.seed = static_cast<unsigned>(std::stoul(v));
       if (const char* v = arg_value(argc, argv, "--focus-center")) spec.focus_center = std::stod(v);
+      if (const char* v = arg_value(argc, argv, "--nl")) spec.nonlinearity = std::stod(v);
+
+      // 靈敏度掃描模式(開放問題 #3):CSV 輸出 offset,central_dcc,delta_pct,max_err,status
+      if (has_flag(argc, argv, "--scan")) {
+        double range = 60.0;
+        int steps = 25;
+        if (const char* v = arg_value(argc, argv, "--scan-range")) range = std::stod(v);
+        if (const char* v = arg_value(argc, argv, "--scan-steps")) steps = std::stoi(v);
+        const std::vector<double> flat(221, 1.0);
+        const double base_fc = spec.focus_center;
+        double base_dcc = 0.0;
+        std::printf("offset_dac,central_dcc,delta_pct,max_err,status\n");
+        for (int i = -1; i < steps; ++i) {  // i=-1 為基準點(offset 0)
+          const double off = (i < 0) ? 0.0
+                                     : -range + 2.0 * range * static_cast<double>(i) /
+                                                    static_cast<double>(steps - 1);
+          auto sc = spec;
+          sc.focus_center = base_fc + off;
+          try {
+            const auto res = dcc::app::run(cfg, dcc::sim::generate(sc), flat, flat);
+            const size_t centers[4] = {19, 20, 27, 28};  // (2,3)(2,4)(3,3)(3,4)
+            double cd = 0.0, me = 0.0;
+            for (size_t idx : centers) cd += res.regions[idx].dcc_raw_px;
+            cd /= 4.0;
+            for (const auto& r : res.regions) me = me > r.err ? me : r.err;
+            if (i < 0) { base_dcc = cd; continue; }
+            std::printf("%.2f,%.6f,%.4f,%.5f,ok\n", off, cd, 100.0 * (cd - base_dcc) / base_dcc, me);
+          } catch (const dcc::DccError& e) {
+            if (i < 0) { std::fprintf(stderr, "基準點中止:%s\n", e.what()); return 2; }
+            std::printf("%.2f,nan,nan,nan,%s\n", off, dcc::to_string(e.code()));
+          }
+        }
+        return 0;
+      }
       seq_json = dcc::sim::generate(spec);
       std::printf("[dry-run] 合成序列:σ=%.3f bias=%.3f seed=%u 合焦=%.1f\n", spec.noise_sigma,
                   spec.bias, spec.seed, spec.focus_center);

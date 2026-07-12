@@ -58,7 +58,9 @@ std::string generate(const SynthSpec& s) {
           continue;
         }
         const double k = true_dcc(r, c, s.grid_w, s.grid_h, s.center_dcc, s.corner_dcc);
-        double d = (dac - s.focus_center) / k + s.bias;
+        double d = (dac - s.focus_center) / k;
+        if (s.nonlinearity != 0.0) d *= 1.0 + s.nonlinearity * (dac - s.focus_center) / 240.0;
+        d += s.bias;
         if (s.noise_sigma > 0.0) d += gauss(rng);
         if (s.unit == "pd_image_grid") d = units::raw_px_to_pd_grid(d, s.pitch_x);
         drow.push_back(d);

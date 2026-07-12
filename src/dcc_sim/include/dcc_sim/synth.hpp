@@ -20,6 +20,8 @@ struct SynthSpec {
   double corner_dcc = 14.5;           // 角落真值(線性升)
   double noise_sigma = 0.0;           // disparity 高斯雜訊 σ [raw_px]
   double bias = 0.0;                  // disparity 系統偏差 [raw_px]
+  double nonlinearity = 0.0;          // 二階非線性:disp ×= (1 + nl·(dac−fc)/240);
+                                      // 0 = 理想線性(此時 DCC 對合焦偏移不敏感)
   unsigned seed = 0;                  // 雜訊種子(確定性)
   std::vector<std::tuple<int, int, int>> null_cells;  // (frame, r, c) → null
   bool with_quality = false;          // 輸出 quality 面(定值 1.0)
