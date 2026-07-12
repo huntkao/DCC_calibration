@@ -174,14 +174,21 @@ void heatmap_plot(GuiState& s, const char* title, const std::vector<double>& val
     ImPlot::PlotHeatmap(title, vals.data(), 6, 8, vmin, vmax, fmt, ImPlotPoint(0, 0),
                         ImPlotPoint(8, 6));
 
-    if (fail_mask) {  // 超過 tolerance 之區以黑色粗框標示(顏色梯度難辨時的硬指標)
+    if (fail_mask) {  // 超過 tolerance 之區:紅色滿版 + 白字重繪數值(硬性 FAIL 標示)
       ImPlot::PushPlotClipRect();
+      auto* dl = ImPlot::GetPlotDrawList();
       for (size_t i = 0; i < fail_mask->size(); ++i) {
         if (!(*fail_mask)[i]) continue;
         const int r = static_cast<int>(i) / 8, c = static_cast<int>(i) % 8;
         const ImVec2 fa = ImPlot::PlotToPixels(ImPlotPoint(c, 5 - r));
         const ImVec2 fb = ImPlot::PlotToPixels(ImPlotPoint(c + 1, 6 - r));
-        ImPlot::GetPlotDrawList()->AddRect(fa, fb, IM_COL32(0, 0, 0, 255), 0.0f, 0, 3.5f);
+        dl->AddRectFilled(fa, fb, IM_COL32(198, 28, 28, 255));
+        dl->AddRect(fa, fb, IM_COL32(110, 0, 0, 255), 0.0f, 0, 2.0f);
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), fmt, vals[i]);
+        const ImVec2 ts = ImGui::CalcTextSize(buf);
+        dl->AddText(ImVec2((fa.x + fb.x - ts.x) * 0.5f, (fa.y + fb.y - ts.y) * 0.5f),
+                    IM_COL32(255, 255, 255, 255), buf);
       }
       ImPlot::PopPlotClipRect();
     }
@@ -224,10 +231,17 @@ void draw_maps(GuiState& s) {
     fail[i] = errv[i] >= s.cfg.tolerance ? 1 : 0;
     n_fail += fail[i];
   }
-  ImPlot::PushColormap(ImPlotColormap_Hot);
+  // 綠色系 colormap(合格 = 綠;超差以紅色覆蓋,綠紅對比一眼可辨)。
+  static const ImPlotColormap greens = [] {
+    static const ImVec4 g[] = {{0.95f, 0.98f, 0.95f, 1.0f}, {0.76f, 0.90f, 0.76f, 1.0f},
+                               {0.52f, 0.79f, 0.54f, 1.0f}, {0.28f, 0.64f, 0.33f, 1.0f},
+                               {0.09f, 0.47f, 0.20f, 1.0f}, {0.01f, 0.32f, 0.12f, 1.0f}};
+    return ImPlot::AddColormap("DccGreens", g, 6, false);
+  }();
+  ImPlot::PushColormap(greens);
   heatmap_plot(s, "err(tolerance 檢核)", errv, 0.0, s.cfg.tolerance, "%.3f", &fail);
   ImPlot::PopColormap();
-  ImGui::Text("點擊格子選擇區域;目前:(r=%d, c=%d)。黑框 = err ≥ tolerance(%d 區)",
+  ImGui::Text("點擊格子選擇區域;目前:(r=%d, c=%d)。紅色 = err ≥ tolerance(%d 區)",
               s.sel_r, s.sel_c, n_fail);
   ImGui::End();
 }
