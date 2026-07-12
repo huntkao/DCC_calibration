@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <string>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -49,18 +50,44 @@ void load_cjk_font(dcc::gui::GuiState& state) {
     b.BuildRanges(&ranges);
   }
 
+  const auto file_exists = [](const char* p) {
+    FILE* f = std::fopen(p, "rb");
+    if (f) std::fclose(f);
+    return f != nullptr;
+  };
+
+  bool loaded = false;
   for (const char* path : candidates) {
-    FILE* f = std::fopen(path, "rb");
-    if (!f) continue;
-    std::fclose(f);
+    if (!file_exists(path)) continue;
     ImFontConfig cfg;
     cfg.OversampleH = 2;
     if (io.Fonts->AddFontFromFileTTF(path, 15.5f, &cfg, ranges.Data)) {
       state.log_add(dcc::gui::LogLevel::info, std::string("字型:") + path);
-      return;
+      loaded = true;
+      break;
     }
   }
-  state.log_add(dcc::gui::LogLevel::warn, "找不到繁中系統字型,退回內建字型(中文將無法顯示)");
+  if (!loaded) {
+    state.log_add(dcc::gui::LogLevel::warn, "找不到繁中系統字型,退回內建字型(中文將無法顯示)");
+    return;
+  }
+
+  // 部分 CJK 字型缺符號 glyph(如 Hiragino Sans GB 缺 ²)→ 以 MergeMode
+  // 從符號字型補齊,不影響 CJK 主字型。
+  ImFontConfig mc;
+  mc.MergeMode = true;
+  static const ImWchar latin_sup[] = {0x00A0, 0x00FF, 0};  // ²、±、° 等
+  static const ImWchar sym[] = {0x2190, 0x21FF, 0x2200, 0x22FF, 0x25A0, 0x25FF, 0};
+  const char* latin_fonts[] = {"/System/Library/Fonts/Helvetica.ttc",
+                               "C:/Windows/Fonts/arial.ttf",
+                               "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"};
+  const char* sym_fonts[] = {"/System/Library/Fonts/Apple Symbols.ttf",
+                             "C:/Windows/Fonts/seguisym.ttf",
+                             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"};
+  for (const char* p : latin_fonts)
+    if (file_exists(p)) { io.Fonts->AddFontFromFileTTF(p, 15.5f, &mc, latin_sup); break; }
+  for (const char* p : sym_fonts)
+    if (file_exists(p)) { io.Fonts->AddFontFromFileTTF(p, 15.5f, &mc, sym); break; }
 }
 
 void apply_theme(bool light) {
@@ -153,6 +180,25 @@ int main(int argc, char** argv) {
     const ImGuiID dockspace_id = ImGui::DockSpaceOverViewport();
     if (want_layout) { apply_auto_layout(dockspace_id); want_layout = false; }
 
+    // 首幀 glyph 自檢:UI 會用到的特殊符號若缺字,直接記 log(不再猜「?」)。
+    static bool glyph_checked = false;
+    if (!glyph_checked && ImGui::GetFont()) {
+      glyph_checked = true;
+      const ImWchar probes[] = {0x00B2 /*²*/, 0x03C3 /*σ*/, 0x0394 /*Δ*/,
+                                0x2192 /*→*/, 0x25CF /*●*/, 0x2248 /*≈*/};
+      std::string missing;
+      for (ImWchar w : probes)
+        if (!ImGui::GetFont()->FindGlyphNoFallback(w)) {
+          char hex[16];
+          std::snprintf(hex, sizeof(hex), " U+%04X", static_cast<unsigned>(w));
+          missing += hex;
+        }
+      if (missing.empty())
+        state.log_add(dcc::gui::LogLevel::info, "glyph 自檢:σ Δ → ● ² ≈ 全部可顯示");
+      else
+        state.log_add(dcc::gui::LogLevel::warn, "glyph 自檢:字型缺字" + missing);
+    }
+
     if (ImGui::BeginMainMenuBar()) {
       if (ImGui::BeginMenu("檢視")) {
         if (ImGui::MenuItem("自動排版(依操作動線)")) want_layout = true;
@@ -191,6 +237,7 @@ int main(int argc, char** argv) {
                 (state.has_result && state.result.pass) ? 1 : 0,
                 state.error_code.empty() ? "-" : state.error_code.c_str(),
                 state.has_result ? state.result.regions.size() : 0);
+    for (const auto& e : state.log) std::printf("LOG[%d] %s\n", static_cast<int>(e.level), e.msg.c_str());
     if (!ok) return 1;
   }
 

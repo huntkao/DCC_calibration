@@ -192,15 +192,13 @@ void draw_maps(GuiState& s) {
   ImGui::Begin("DCC / 誤差 map");
   if (!s.has_result) { ImGui::TextDisabled("尚無結果"); ImGui::End(); return; }
 
-  // row-major:畫面上排須為 r=0 → heatmap 資料列反轉。
+  // ImPlot heatmap 的第一列即畫在最上方 → 直接以 row-major 餵入,
+  // r=0 顯示在上排,與點擊換算/高亮框/區域檢視一致(勿再翻轉!)。
   std::vector<double> dccv(48), errv(48);
-  for (int r = 0; r < 6; ++r)
-    for (int c = 0; c < 8; ++c) {
-      const size_t src = static_cast<size_t>(r) * 8 + static_cast<size_t>(c);
-      const size_t dst = static_cast<size_t>(5 - r) * 8 + static_cast<size_t>(c);
-      dccv[dst] = s.result.regions[src].dcc_raw_px;
-      errv[dst] = s.result.regions[src].err;
-    }
+  for (size_t i = 0; i < 48; ++i) {
+    dccv[i] = s.result.regions[i].dcc_raw_px;
+    errv[i] = s.result.regions[i].err;
+  }
   double dmin = dccv[0], dmax = dccv[0];
   for (double v : dccv) { dmin = std::min(dmin, v); dmax = std::max(dmax, v); }
 
@@ -228,9 +226,11 @@ void draw_region_detail(GuiState& s) {
   const auto& res = s.result;
   const size_t ri = static_cast<size_t>(s.sel_r) * 8 + static_cast<size_t>(s.sel_c);
   const auto& reg = res.regions[ri];
-  ImGui::Text("區 (r=%d, c=%d):DCC=%.4f  b=%.2f  r²=%.5f  peak=%.2f  err=%.4f  %s", s.sel_r,
-              s.sel_c, reg.dcc_raw_px, reg.intercept, reg.r2, reg.focus_peak, reg.err,
-              reg.pass ? "PASS" : "FAIL");
+  ImGui::Text("區 (r=%d, c=%d):DCC(k)=%.4f  截距 b=%.2f  r²=%.5f  focus peak=%.2f",
+              s.sel_r, s.sel_c, reg.dcc_raw_px, reg.intercept, reg.r2, reg.focus_peak);
+  ImGui::Text("err = |b − peak| / span = |%.2f − %.2f| / %.0f = %.4f  → %s", reg.intercept,
+              reg.focus_peak, res.span, reg.err, reg.pass ? "PASS" : "FAIL");
+  ImGui::TextDisabled("(k 即 DCC 斜率;r² 為迴歸擬合品質;map 上顯示同值,位數較少)");
 
   const size_t n = res.seq.disp.size();
   std::vector<double> xs, ys, fx(n), fy(n);
