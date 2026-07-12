@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase D-1 圖解:PD 像素解析與 L/R 影像尺寸推導</title>
+<style>
+:root{
+  --ink:#1A222B; --ink2:#414D59; --head:#10181F;
+  --teal:#147681; --teal-soft:#EDF7F8;
+  --left:#2757B8; --leftbg:#E8EEFB;
+  --right:#C55F12; --rightbg:#FBEFE4;
+  --rule:#E9EEF1; --warn-bg:#FEF9F1; --warn-bd:#F2CE99;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --sans:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;color:var(--ink);font-family:var(--sans);line-height:1.8;font-size:15.5px}
+.wrap{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:1px solid var(--rule);padding:28px 0 24px;margin-bottom:34px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--teal);text-transform:uppercase;margin-bottom:10px}
+h1{font-size:clamp(24px,5vw,32px);line-height:1.35;font-weight:700;color:var(--head)}
+.sub{color:var(--ink2);margin-top:10px;font-size:14.5px}
+h2{font-size:20px;margin:52px 0 10px;display:flex;align-items:baseline;gap:12px;color:var(--head)}
+h2 .no{font-family:var(--mono);font-size:12.5px;color:var(--teal);background:var(--teal-soft);border:1px solid #CFE8EA;padding:2px 10px;border-radius:999px;white-space:nowrap}
+p{margin:10px 0}
+code{font-family:var(--mono);font-size:.92em;background:#F3F7F8;padding:1px 6px;border-radius:4px;color:#0A525B}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+th{background:#F5F8FA;color:var(--head);text-align:left;padding:9px 12px;font-weight:600;font-size:13px;border:1px solid var(--rule)}
+td{border:1px solid var(--rule);padding:8px 12px;vertical-align:top}
+td.num{font-family:var(--mono);white-space:nowrap}
+.formula{font-family:var(--mono);font-size:14px;background:#F6FAFA;color:#173038;border:1px solid #DDEBEC;border-radius:10px;padding:15px 18px;margin:16px 0;overflow-x:auto;white-space:pre;line-height:2.0}
+.formula .hl{color:#A34A05;font-weight:700}
+.formula .ok{color:#2E7D4F;font-weight:700}
+.note{background:var(--teal-soft);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14.5px}
+.warn{background:var(--warn-bg);border-left:3px solid var(--warn-bd);border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14.5px}
+.warn b{color:#7F4E08}
+figure{margin:22px 0}
+figure svg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--rule);border-radius:10px}
+figcaption{font-size:13px;color:var(--ink2);margin-top:9px;text-align:center}
+.tagL{color:var(--left);font-weight:700}
+.tagR{color:var(--right);font-weight:700}
+footer{margin-top:60px;border-top:1px solid var(--rule);padding-top:16px;font-size:12.5px;color:var(--ink2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">DCC Calibration · Phase D-1 Supplement</div>
+  <h1>圖解:PD 像素解析與 L/R 影像尺寸推導</h1>
+  <p class="sub">修正並展開 Phase D 第 1 步的計算 · 假設模組:4608×3456 sensor,32×32 pattern,每 pattern 8 對 L/R</p>
+</header>
+
+<div class="warn"><b>勘誤:</b>前版文件寫「L/R 影像各約 144 × 216」與「每區約 18 × 36 個 PD 樣本」——兩者皆誤,只算到正確值的 1/4。正確值為 <b>288 × 432</b> 與 <b>36 × 72</b>,推導如下。</div>
+
+<!-- ============ 1 ============ -->
+<h2><span class="no">STEP 1</span>全幅影像切成多少個 pattern block?</h2>
+<div class="formula">橫向 block 數 = 4608 / 32 = <span class="hl">144</span>
+縱向 block 數 = 3456 / 32 = <span class="hl">108</span>
+全幅 block 總數 = 144 × 108 = <span class="hl">15,552 blocks</span></div>
+
+<figure>
+<svg viewBox="0 0 760 330">
+  <g font-family="var(--sans)" font-size="12.5">
+    <!-- full sensor -->
+    <rect x="40" y="40" width="384" height="288" fill="#FBFDFD" stroke="#222C36" stroke-width="2"/>
+    <!-- grid lines: 12x9 shown to represent 144x108 -->
+    <g stroke="#DCE5E9" stroke-width="1">
+      <line x1="72" y1="40" x2="72" y2="328"/><line x1="104" y1="40" x2="104" y2="328"/>
+      <line x1="136" y1="40" x2="136" y2="328"/><line x1="168" y1="40" x2="168" y2="328"/>
+      <line x1="200" y1="40" x2="200" y2="328"/><line x1="232" y1="40" x2="232" y2="328"/>
+      <line x1="264" y1="40" x2="264" y2="328"/><line x1="296" y1="40" x2="296" y2="328"/>
+      <line x1="328" y1="40" x2="328" y2="328"/><line x1="360" y1="40" x2="360" y2="328"/>
+      <line x1="392" y1="40" x2="392" y2="328"/>
+      <line x1="40" y1="72" x2="424" y2="72"/><line x1="40" y1="104" x2="424" y2="104"/>
+      <line x1="40" y1="136" x2="424" y2="136"/><line x1="40" y1="168" x2="424" y2="168"/>
+      <line x1="40" y1="200" x2="424" y2="200"/><line x1="40" y1="232" x2="424" y2="232"/>
+      <line x1="40" y1="264" x2="424" y2="264"/><line x1="40" y1="296" x2="424" y2="296"/>
+    </g>
+    <!-- highlighted block -->
+    <rect x="200" y="136" width="32" height="32" fill="#EDF7F8" stroke="#147681" stroke-width="2.5"/>
+    <!-- labels -->
+    <text x="232" y="28" fill="#10181F" text-anchor="middle" font-weight="600">Sensor 4608 × 3456(10-bit RAW)</text>
+    <text x="232" y="352" fill="#414D59" text-anchor="middle" font-family="var(--mono)" font-size="12">144 × 108 = 15,552 個 32×32 pattern blocks</text>
+    <!-- zoom lines to right box -->
+    <line x1="232" y1="136" x2="500" y2="60" stroke="#147681" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <line x1="232" y1="168" x2="500" y2="300" stroke="#147681" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <!-- zoomed block -->
+    <rect x="500" y="60" width="220" height="240" fill="#FDFEFE" stroke="#147681" stroke-width="2.5" rx="4"/>
+    <text x="610" y="48" fill="#147681" text-anchor="middle" font-weight="600" font-family="var(--mono)" font-size="12">1 個 pattern block = 32 × 32 px</text>
+    <text x="610" y="322" fill="#414D59" text-anchor="middle" font-size="12">→ STEP 2 放大檢視</text>
+  </g>
+</svg>
+<figcaption>圖 A · 全幅影像 = 144 × 108 個 pattern blocks;每個 block 的 PD 配置完全相同(週期性)</figcaption>
+</figure>
+
+<!-- ============ 2 ============ -->
+<h2><span class="no">STEP 2</span>單一 32×32 block 內,8 對 L/R 怎麼排?</h2>
+<p>假設 8 對以 <b>2 欄 × 4 列</b>配置——即每一對 L/R 佔據一個 <code>16 × 8</code>(寬×高)的子格。這是本文的關鍵假設,實際位置以 sensor 廠的 configuration file 為準,但「均勻子格」是最常見的設計。</p>
+
+<figure>
+<svg viewBox="0 0 760 420">
+  <g font-family="var(--sans)" font-size="12.5">
+    <!-- 32x32 block scaled 12px/px = 384 -->
+    <rect x="60" y="40" width="384" height="384" fill="#FDFEFE" stroke="#147681" stroke-width="2.5"/>
+    <!-- subcell grid 2 cols x 4 rows: each 192 wide x 96 high -->
+    <g stroke="#CFE8EA" stroke-width="1.5" stroke-dasharray="6 4">
+      <line x1="252" y1="40" x2="252" y2="424"/>
+      <line x1="60" y1="136" x2="444" y2="136"/>
+      <line x1="60" y1="232" x2="444" y2="232"/>
+      <line x1="60" y1="328" x2="444" y2="328"/>
+    </g>
+    <!-- L/R pixel pair inside each subcell: L at ~(4,3), R at ~(8,3) in px coords; scale12 -->
+    <g>
+      <!-- template repeated: L rect 12x12 blue, R orange, gap 3px cells -->
+      <!-- row1 col1 -->
+      <rect x="108" y="76" width="12" height="12" fill="#2757B8"/><rect x="156" y="76" width="12" height="12" fill="#C55F12"/>
+      <!-- row1 col2 -->
+      <rect x="300" y="76" width="12" height="12" fill="#2757B8"/><rect x="348" y="76" width="12" height="12" fill="#C55F12"/>
+      <!-- row2 -->
+      <rect x="108" y="172" width="12" height="12" fill="#2757B8"/><rect x="156" y="172" width="12" height="12" fill="#C55F12"/>
+      <rect x="300" y="172" width="12" height="12" fill="#2757B8"/><rect x="348" y="172" width="12" height="12" fill="#C55F12"/>
+      <!-- row3 -->
+      <rect x="108" y="268" width="12" height="12" fill="#2757B8"/><rect x="156" y="268" width="12" height="12" fill="#C55F12"/>
+      <rect x="300" y="268" width="12" height="12" fill="#2757B8"/><rect x="348" y="268" width="12" height="12" fill="#C55F12"/>
+      <!-- row4 -->
+      <rect x="108" y="364" width="12" height="12" fill="#2757B8"/><rect x="156" y="364" width="12" height="12" fill="#C55F12"/>
+      <rect x="300" y="364" width="12" height="12" fill="#2757B8"/><rect x="348" y="364" width="12" height="12" fill="#C55F12"/>
+    </g>
+    <!-- subcell dimension callout on first subcell -->
+    <g font-family="var(--mono)" font-size="11.5" fill="#147681">
+      <line x1="60" y1="58" x2="252" y2="58" stroke="#147681" stroke-width="1.2"/>
+      <text x="156" y="54" text-anchor="middle">16 px</text>
+      <line x1="76" y1="40" x2="76" y2="136" stroke="#147681" stroke-width="1.2"/>
+      <text x="86" y="92">8 px</text>
+    </g>
+    <!-- labels -->
+    <text x="252" y="26" fill="#10181F" text-anchor="middle" font-weight="600">32 × 32 pattern block(放大 12 倍)</text>
+    <!-- legend / math on right -->
+    <g transform="translate(490,80)">
+      <rect x="0" y="0" width="14" height="14" fill="#2757B8"/><text x="22" y="12" fill="#1A222B">L 像素(右半遮罩)× 8</text>
+      <rect x="0" y="30" width="14" height="14" fill="#C55F12"/><text x="22" y="42" fill="#1A222B">R 像素(左半遮罩)× 8</text>
+      <text x="0" y="86" fill="#414D59" font-size="13">子格數 = 2 欄 × 4 列 = 8</text>
+      <text x="0" y="112" fill="#414D59" font-size="13">每子格 = 32/2 × 32/4</text>
+      <text x="0" y="138" fill="#414D59" font-size="13" font-family="var(--mono)">      = 16 × 8 px(寬×高)</text>
+      <text x="0" y="180" fill="#10181F" font-size="13.5" font-weight="600">→ 每個子格貢獻恰好</text>
+      <text x="0" y="204" fill="#10181F" font-size="13.5" font-weight="600">   1 個 L 樣本 + 1 個 R 樣本</text>
+      <text x="0" y="246" fill="#414D59" font-size="12.5">(L、R 在同列相鄰數 px,</text>
+      <text x="0" y="268" fill="#414D59" font-size="12.5">配對取代 Gr/Gb 位置)</text>
+    </g>
+  </g>
+</svg>
+<figcaption>圖 B · 8 對 L/R 以 2×4 均勻分佈:<span class="tagL">L</span> 取樣間距 = 水平 16 px、垂直 8 px(<span class="tagR">R</span> 同)</figcaption>
+</figure>
+
+<div class="formula">L 像素總數 = 15,552 blocks × 8 = <span class="hl">124,416</span>(R 相同)
+PD 像素密度 = (124,416 + 124,416) / (4608 × 3456)
+           = 248,832 / 15,925,248 ≈ <span class="hl">1.56%</span>   ← sparse PDAF 典型範圍(1–3%)</div>
+
+<!-- ============ 3 ============ -->
+<h2><span class="no">STEP 3</span>抽出後的 L / R 影像是多大?</h2>
+<p>把全幅所有 <span class="tagL">L</span> 像素依原始相對位置collect成一張影像:水平方向每 16 px 有一個樣本、垂直方向每 8 px 有一個樣本,所以——</p>
+
+<div class="formula">L 影像寬 = 4608 / 16 = <span class="hl">288</span>
+L 影像高 = 3456 /  8 = <span class="hl">432</span>
+
+L 影像 = <span class="hl">288 × 432</span>(寬 × 高),R 影像相同
+驗算:288 × 432 = 124,416 <span class="ok">✓ 與 STEP 2 的像素總數一致</span></div>
+
+<figure>
+<svg viewBox="0 0 760 340">
+  <g font-family="var(--sans)" font-size="12.5">
+    <!-- original sensor 4:3 -->
+    <rect x="40" y="70" width="288" height="216" fill="#FBFDFD" stroke="#222C36" stroke-width="2"/>
+    <text x="184" y="56" fill="#10181F" text-anchor="middle" font-weight="600">原始 RAW 4608 × 3456(4:3)</text>
+    <!-- scattered L,R dots pattern (sample a few) -->
+    <g>
+      <g fill="#2757B8">
+        <rect x="60" y="90" width="6" height="6"/><rect x="108" y="90" width="6" height="6"/><rect x="156" y="90" width="6" height="6"/><rect x="204" y="90" width="6" height="6"/><rect x="252" y="90" width="6" height="6"/>
+        <rect x="60" y="138" width="6" height="6"/><rect x="108" y="138" width="6" height="6"/><rect x="156" y="138" width="6" height="6"/><rect x="204" y="138" width="6" height="6"/><rect x="252" y="138" width="6" height="6"/>
+        <rect x="60" y="186" width="6" height="6"/><rect x="108" y="186" width="6" height="6"/><rect x="156" y="186" width="6" height="6"/><rect x="204" y="186" width="6" height="6"/><rect x="252" y="186" width="6" height="6"/>
+        <rect x="60" y="234" width="6" height="6"/><rect x="108" y="234" width="6" height="6"/><rect x="156" y="234" width="6" height="6"/><rect x="204" y="234" width="6" height="6"/><rect x="252" y="234" width="6" height="6"/>
+      </g>
+      <g fill="#C55F12">
+        <rect x="74" y="90" width="6" height="6"/><rect x="122" y="90" width="6" height="6"/><rect x="170" y="90" width="6" height="6"/><rect x="218" y="90" width="6" height="6"/><rect x="266" y="90" width="6" height="6"/>
+        <rect x="74" y="138" width="6" height="6"/><rect x="122" y="138" width="6" height="6"/><rect x="170" y="138" width="6" height="6"/><rect x="218" y="138" width="6" height="6"/><rect x="266" y="138" width="6" height="6"/>
+        <rect x="74" y="186" width="6" height="6"/><rect x="122" y="186" width="6" height="6"/><rect x="170" y="186" width="6" height="6"/><rect x="218" y="186" width="6" height="6"/><rect x="266" y="186" width="6" height="6"/>
+        <rect x="74" y="234" width="6" height="6"/><rect x="122" y="234" width="6" height="6"/><rect x="170" y="234" width="6" height="6"/><rect x="218" y="234" width="6" height="6"/><rect x="266" y="234" width="6" height="6"/>
+      </g>
+    </g>
+    <!-- arrows -->
+    <defs><marker id="m1" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#414D59"/></marker></defs>
+    <line x1="336" y1="130" x2="418" y2="105" stroke="#2757B8" stroke-width="1.8" marker-end="url(#m1)"/>
+    <line x1="336" y1="230" x2="418" y2="255" stroke="#C55F12" stroke-width="1.8" marker-end="url(#m1)"/>
+    <text x="376" y="102" fill="#2757B8" font-size="12">抽 L</text>
+    <text x="376" y="272" fill="#C55F12" font-size="12">抽 R</text>
+    <!-- L image (tall 2:3) -->
+    <rect x="430" y="30" width="96" height="144" fill="#E8EEFB" stroke="#2757B8" stroke-width="2"/>
+    <text x="478" y="105" fill="#2757B8" text-anchor="middle" font-family="var(--mono)" font-size="12" font-weight="600">288×432</text>
+    <text x="478" y="192" fill="#10181F" text-anchor="middle" font-size="12.5">L 影像</text>
+    <!-- R image -->
+    <rect x="430" y="196" width="96" height="144" fill="#FBEFE4" stroke="#C55F12" stroke-width="2" transform="translate(0,-16)"/>
+    <text x="478" y="255" fill="#C55F12" text-anchor="middle" font-family="var(--mono)" font-size="12" font-weight="600">288×432</text>
+    <text x="478" y="336" fill="#10181F" text-anchor="middle" font-size="12.5">R 影像</text>
+    <!-- anisotropy note -->
+    <g transform="translate(560,60)">
+      <text x="0" y="0" fill="#10181F" font-weight="600" font-size="13">注意長寬比改變!</text>
+      <text x="0" y="26" fill="#414D59" font-size="12.5">原圖 4:3(4608:3456)</text>
+      <text x="0" y="48" fill="#414D59" font-size="12.5">L 影像 2:3(288:432)</text>
+      <text x="0" y="82" fill="#414D59" font-size="12.5">因為取樣間距不等向:</text>
+      <text x="0" y="106" fill="#414D59" font-size="12.5" font-family="var(--mono)">水平 pitch = 16 px</text>
+      <text x="0" y="128" fill="#414D59" font-size="12.5" font-family="var(--mono)">垂直 pitch =  8 px</text>
+      <text x="0" y="164" fill="#7F4E08" font-size="12.5">→ L 影像上水平位移 1 格</text>
+      <text x="0" y="186" fill="#7F4E08" font-size="12.5">   = 原始座標 16 px</text>
+    </g>
+  </g>
+</svg>
+<figcaption>圖 C · L/R 各自collect成 288 × 432 的低解析影像;取樣不等向使長寬比從 4:3 變成 2:3</figcaption>
+</figure>
+
+<div class="warn"><b>單位陷阱(演算法開發必讀):</b>SAD 位移搜尋是在 L/R 影像(288×432)的座標系做的。若搜尋結果為 <code>d 格</code>(次像素內插後),換算回原始 pixel 單位是 <code>d × 16 px</code>。DCC 的分母「disparity [pixel]」<b>必須全流程統一單位</b>——校正 DLL 用哪個座標系,runtime PDLIB 就得用同一個,否則 DCC 直接差 16 倍,一步跳焦會嚴重過衝或不動。</div>
+
+<!-- ============ 4 ============ -->
+<h2><span class="no">STEP 4</span>每個 8×6 區域裡有多少 PD 樣本?</h2>
+<div class="formula">區域尺寸(原始座標)= 4608/8 × 3456/6 = <span class="hl">576 × 576 px</span>
+
+每區 L 樣本 = 576/16(橫)× 576/8(縱)= <span class="hl">36 × 72 = 2,592 個</span>
+(R 樣本同為 2,592 個)
+
+驗算:48 區 × 2,592 = 124,416 <span class="ok">✓ 與 L 像素總數一致</span></div>
+
+<figure>
+<svg viewBox="0 0 760 300">
+  <g font-family="var(--sans)" font-size="12.5">
+    <!-- sensor with 8x6 grid -->
+    <rect x="60" y="40" width="384" height="216" fill="#FBFDFD" stroke="#222C36" stroke-width="2"/>
+    <g stroke="#DCE5E9" stroke-width="1.2">
+      <line x1="108" y1="40" x2="108" y2="256"/><line x1="156" y1="40" x2="156" y2="256"/>
+      <line x1="204" y1="40" x2="204" y2="256"/><line x1="252" y1="40" x2="252" y2="256"/>
+      <line x1="300" y1="40" x2="300" y2="256"/><line x1="348" y1="40" x2="348" y2="256"/>
+      <line x1="396" y1="40" x2="396" y2="256"/>
+      <line x1="60" y1="76" x2="444" y2="76"/><line x1="60" y1="112" x2="444" y2="112"/>
+      <line x1="60" y1="148" x2="444" y2="148"/><line x1="60" y1="184" x2="444" y2="184"/>
+      <line x1="60" y1="220" x2="444" y2="220"/>
+    </g>
+    <!-- highlight center region (3,3) zero-indexed: col3 x=204..252, row3 y=148..184 -->
+    <rect x="204" y="148" width="48" height="36" fill="#EDF7F8" stroke="#147681" stroke-width="2.5"/>
+    <text x="252" y="30" fill="#10181F" text-anchor="middle" font-weight="600">8 × 6 = 48 個回歸區域(每區獨立算 disparity 與 DCC)</text>
+    <text x="252" y="278" fill="#414D59" text-anchor="middle" font-family="var(--mono)" font-size="12">每區 = 576 × 576 px(原始座標)</text>
+    <!-- zoom callout -->
+    <line x1="252" y1="148" x2="520" y2="70" stroke="#147681" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <line x1="252" y1="184" x2="520" y2="240" stroke="#147681" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <g transform="translate(520,70)">
+      <rect x="0" y="0" width="170" height="170" fill="#FDFEFE" stroke="#147681" stroke-width="2" rx="4"/>
+      <!-- dot matrix suggesting 36x72 samples: draw 9x12 dots -->
+      <g fill="#2757B8">
+        <circle cx="20" cy="16" r="2.6"/><circle cx="38" cy="16" r="2.6"/><circle cx="56" cy="16" r="2.6"/><circle cx="74" cy="16" r="2.6"/><circle cx="92" cy="16" r="2.6"/><circle cx="110" cy="16" r="2.6"/><circle cx="128" cy="16" r="2.6"/><circle cx="146" cy="16" r="2.6"/>
+        <circle cx="20" cy="30" r="2.6"/><circle cx="38" cy="30" r="2.6"/><circle cx="56" cy="30" r="2.6"/><circle cx="74" cy="30" r="2.6"/><circle cx="92" cy="30" r="2.6"/><circle cx="110" cy="30" r="2.6"/><circle cx="128" cy="30" r="2.6"/><circle cx="146" cy="30" r="2.6"/>
+        <circle cx="20" cy="44" r="2.6"/><circle cx="38" cy="44" r="2.6"/><circle cx="56" cy="44" r="2.6"/><circle cx="74" cy="44" r="2.6"/><circle cx="92" cy="44" r="2.6"/><circle cx="110" cy="44" r="2.6"/><circle cx="128" cy="44" r="2.6"/><circle cx="146" cy="44" r="2.6"/>
+        <circle cx="20" cy="58" r="2.6"/><circle cx="38" cy="58" r="2.6"/><circle cx="56" cy="58" r="2.6"/><circle cx="74" cy="58" r="2.6"/><circle cx="92" cy="58" r="2.6"/><circle cx="110" cy="58" r="2.6"/><circle cx="128" cy="58" r="2.6"/><circle cx="146" cy="58" r="2.6"/>
+        <circle cx="20" cy="72" r="2.6"/><circle cx="38" cy="72" r="2.6"/><circle cx="56" cy="72" r="2.6"/><circle cx="74" cy="72" r="2.6"/><circle cx="92" cy="72" r="2.6"/><circle cx="110" cy="72" r="2.6"/><circle cx="128" cy="72" r="2.6"/><circle cx="146" cy="72" r="2.6"/>
+        <circle cx="20" cy="86" r="2.6"/><circle cx="38" cy="86" r="2.6"/><circle cx="56" cy="86" r="2.6"/><circle cx="74" cy="86" r="2.6"/><circle cx="92" cy="86" r="2.6"/><circle cx="110" cy="86" r="2.6"/><circle cx="128" cy="86" r="2.6"/><circle cx="146" cy="86" r="2.6"/>
+      </g>
+      <text x="85" y="118" fill="#414D59" text-anchor="middle" font-size="11.5">⋮(示意)</text>
+      <text x="85" y="146" fill="#10181F" text-anchor="middle" font-family="var(--mono)" font-size="12.5" font-weight="600">36 × 72 = 2,592 樣本</text>
+      <text x="85" y="164" fill="#414D59" text-anchor="middle" font-size="11.5">SAD 統計量充足 → 視差穩定</text>
+    </g>
+  </g>
+</svg>
+<figcaption>圖 D · 中央區域(576×576 px)內含 36 × 72 = 2,592 個 L 樣本,足以做出低雜訊的 SAD 位移估測</figcaption>
+</figure>
+
+<!-- ============ summary ============ -->
+<h2><span class="no">總表</span>修正後的完整數據</h2>
+<table>
+<tr><th>量</th><th>算式</th><th>結果</th></tr>
+<tr><td>Pattern blocks</td><td class="num">(4608/32) × (3456/32)</td><td class="num">144 × 108 = 15,552</td></tr>
+<tr><td>L(或 R)像素總數</td><td class="num">15,552 × 8</td><td class="num">124,416</td></tr>
+<tr><td>PD 密度</td><td class="num">248,832 / 15,925,248</td><td class="num">≈ 1.56%</td></tr>
+<tr><td>取樣 pitch</td><td class="num">32/2(橫)、32/4(縱)</td><td class="num">16 px × 8 px</td></tr>
+<tr><td>L / R 影像尺寸</td><td class="num">(4608/16) × (3456/8)</td><td class="num">288 × 432(寬×高)</td></tr>
+<tr><td>回歸區域尺寸</td><td class="num">(4608/8) × (3456/6)</td><td class="num">576 × 576 px</td></tr>
+<tr><td>每區 L 樣本</td><td class="num">(576/16) × (576/8)</td><td class="num">36 × 72 = 2,592</td></tr>
+<tr><td>交叉驗算</td><td class="num">48 × 2,592</td><td class="num">124,416 ✓</td></tr>
+</table>
+
+<div class="note"><b>一句話總結:</b>只要知道「每對 L/R 佔一個 16×8 子格」,所有尺寸都是整除關係,可以互相驗算——L/R 影像 288×432、每區 2,592 樣本、總數 124,416,三者閉環一致。實際模組請以 sensor configuration file 的 pattern 定義重跑同一套除法。</div>
+
+<footer>本文為《DCC 校正 Step-by-Step 詳解》Phase D-1 的補充勘誤;假設模組同主文(4608×3456 / 32×32 pattern / 8 對)。實際 PD 配置以 sensor 廠 configuration file 為準。</footer>
+
+</div>
+</body>
+</html>

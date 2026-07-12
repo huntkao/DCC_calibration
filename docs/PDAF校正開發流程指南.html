@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDAF 校正與開發流程指南</title>
+<style>
+:root{
+  --paper:#FFFFFF; --ink:#1A222B; --ink2:#414D59; --head:#10181F;
+  --teal:#147681; --teal-soft:#EDF7F8;
+  --rule:#E9EEF1; --warn-bg:#FEF9F1; --warn-bd:#F2CE99;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;line-height:1.8;font-size:15.5px}
+.wrap{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:1px solid var(--rule);padding:30px 0 26px;margin-bottom:38px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--teal);text-transform:uppercase;margin-bottom:12px}
+h1{font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;font-size:clamp(26px,5vw,36px);line-height:1.3;font-weight:700;color:var(--head)}
+.sub{color:var(--ink2);margin-top:12px;font-size:14.5px}
+h2{font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;font-size:21px;margin:54px 0 10px;display:flex;align-items:baseline;gap:12px;color:var(--head)}
+h2 .no{font-family:var(--mono);font-size:12.5px;color:var(--teal);background:var(--teal-soft);border:1px solid #CFE8EA;padding:2px 10px;border-radius:999px;letter-spacing:.08em;white-space:nowrap}
+h3{font-size:16.5px;margin:26px 0 8px;color:var(--head)}
+p{margin:10px 0}
+.lead{color:var(--ink2)}
+code,.mono{font-family:var(--mono);font-size:.92em;background:#F3F7F8;padding:1px 6px;border-radius:4px;color:#0A525B}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;background:#fff}
+th{background:#F5F8FA;color:var(--head);text-align:left;padding:9px 12px;font-weight:600;font-size:13px;border:1px solid var(--rule)}
+td{border:1px solid var(--rule);padding:8px 12px;vertical-align:top}
+td.num{font-family:var(--mono);white-space:nowrap}
+.formula{font-family:var(--mono);font-size:14px;background:#F6FAFA;color:#173038;border:1px solid #DDEBEC;border-radius:10px;padding:15px 18px;margin:16px 0;overflow-x:auto;white-space:pre;line-height:1.95}
+.formula .hl{color:#A34A05;font-weight:600}
+.note{background:var(--teal-soft);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14.5px}
+.warn{background:var(--warn-bg);border-left:3px solid var(--warn-bd);border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14.5px}
+.warn b{color:#7F4E08}
+figure{margin:22px 0}
+figure svg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--rule);border-radius:10px}
+figcaption{font-size:13px;color:var(--ink2);margin-top:9px;text-align:center}
+ul.plain{margin:10px 0 10px 22px}
+ul.plain li{margin:6px 0}
+ol.flow{margin:10px 0 10px 22px}
+ol.flow li{margin:8px 0}
+.check{list-style:none;margin:12px 0}
+.check li{padding:6px 0 6px 32px;position:relative;border-bottom:1px dashed var(--rule)}
+.check li::before{content:"☐";position:absolute;left:6px;color:var(--teal);font-size:17px}
+footer{margin-top:64px;border-top:1px solid var(--rule);padding-top:16px;font-size:12.5px;color:var(--ink2)}
+footer a{color:var(--teal)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">PDAF Development Reference</div>
+  <h1>PDAF 相位自動對焦 — 校正與開發流程指南</h1>
+  <p class="sub">主要依據:Qualcomm《PDAF Module Calibration Guide》(80-NV125-1 Rev. L5, 2017) · 適用對象:相機模組校正 / AF 演算法開發工程師</p>
+</header>
+
+<!-- 1 -->
+<h2><span class="no">1</span>系統架構與資料流</h2>
+<figure>
+<svg viewBox="0 0 760 190" role="img" aria-label="PDAF 系統資料流">
+  <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#414D59"/></marker></defs>
+  <g font-family="-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif" font-size="12.5" text-anchor="middle">
+    <!-- pipeline boxes -->
+    <rect x="20" y="60" width="90" height="52" rx="8" fill="#FDFEFE" stroke="#222C36" stroke-width="1.5"/>
+    <text x="65" y="90" fill="#10181F">PD pixels</text>
+    <rect x="150" y="60" width="100" height="52" rx="8" fill="#EDF7F8" stroke="#147681" stroke-width="1.5"/>
+    <text x="200" y="83" fill="#10181F">Gain 校正</text>
+    <text x="200" y="101" fill="#414D59" font-size="11">(套 gain map)</text>
+    <rect x="290" y="60" width="130" height="52" rx="8" fill="#FDFEFE" stroke="#222C36" stroke-width="1.5"/>
+    <text x="355" y="83" fill="#10181F">Phase Disparity</text>
+    <text x="355" y="101" fill="#414D59" font-size="11">L/R 位移搜尋</text>
+    <rect x="460" y="60" width="140" height="52" rx="8" fill="#EDF7F8" stroke="#147681" stroke-width="1.5"/>
+    <text x="530" y="83" fill="#10181F">Phase→Defocus</text>
+    <text x="530" y="101" fill="#414D59" font-size="11">(套 DCC map)</text>
+    <rect x="640" y="60" width="100" height="52" rx="8" fill="#FDFEFE" stroke="#222C36" stroke-width="1.5"/>
+    <text x="690" y="83" fill="#10181F">PDLIB 輸出</text>
+    <text x="690" y="101" fill="#414D59" font-size="11">DAC 移動量</text>
+    <!-- arrows -->
+    <g stroke="#414D59" stroke-width="1.8">
+      <line x1="110" y1="86" x2="147" y2="86" marker-end="url(#ar)"/>
+      <line x1="250" y1="86" x2="287" y2="86" marker-end="url(#ar)"/>
+      <line x1="420" y1="86" x2="457" y2="86" marker-end="url(#ar)"/>
+      <line x1="600" y1="86" x2="637" y2="86" marker-end="url(#ar)"/>
+    </g>
+    <!-- calibration inputs -->
+    <text x="200" y="34" fill="#A34A05" font-family="ui-monospace, Menlo, monospace" font-size="11.5">GAIN MAP(校正產出)</text>
+    <line x1="200" y1="40" x2="200" y2="57" stroke="#A34A05" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar2)"/>
+    <text x="530" y="34" fill="#A34A05" font-family="ui-monospace, Menlo, monospace" font-size="11.5">DCC MAP(校正產出)</text>
+    <line x1="530" y1="40" x2="530" y2="57" stroke="#A34A05" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar2)"/>
+    <text x="380" y="160" fill="#414D59" font-size="12">殘餘誤差由 Contrast AF 微調收斂</text>
+  </g>
+  <defs><marker id="ar2" markerWidth="9" markerHeight="9" refX="4.5" refY="8" orient="auto-start-reverse"><path d="M0 0 L9 0 L4.5 9 z" fill="#A34A05"/></marker></defs>
+</svg>
+<figcaption>PDLIB 估算離焦量;正確運作依賴兩份逐模組校正資料:Gain Map 與 DCC Map</figcaption>
+</figure>
+
+<!-- 2 -->
+<h2><span class="no">2</span>校正總覽:2 個校正步驟 + 1 個前置設定</h2>
+<table>
+<tr><th style="width:6%">#</th><th style="width:32%">項目</th><th style="width:22%">性質</th><th>產出</th></tr>
+<tr><td class="num">0</td><td>Sensor Configuration</td><td>前置設定</td><td>PD 像素座標 / pattern 設定檔</td></tr>
+<tr><td class="num">1</td><td>Gain Map 校正(SPC)</td><td>逐模組校正</td><td>左 / 右 gain map(13×17)</td></tr>
+<tr><td class="num">2</td><td>DCC 校正</td><td>逐模組校正</td><td>DCC map(8×6,DAC/pixel)</td></tr>
+</table>
+<div class="note"><b>先後順序限制:</b>OIS 模組須先完成 OIS 校正並鎖定參考 XY 位置,再做 LSC 與 gain map;<b>AF 校正必須先於 DCC 校正</b>(DCC 需要 <code>AF_CAL_INF</code> 與 <code>AF_CAL_MACRO</code>)。</div>
+
+<!-- 3 -->
+<h2><span class="no">3</span>前置:Sensor Configuration</h2>
+<ul class="plain">
+<li>Sparse PDAF(PD 像素以重複 pattern 分佈)需指定 PD 像素位置,校正 DLL 才能從 RAW 影像正確解析 PD 像素。</li>
+<li>設定檔由 sensor 廠商提供(例:Sony IMX258 的 sensor configuration file),但必須逐項核對實際 RAW 輸出——影像尺寸、PD 像素區塊位置可能與範例檔不同。</li>
+<li>PD 像素座標須依 x 座標遞增排序(DLL 不做自動排序)。</li>
+<li>RAW 影像必須以 <b>canonical orientation</b> 讀出:flip 與 mirror 都要關閉。</li>
+</ul>
+
+<!-- 4 -->
+<h2><span class="no">4</span>校正步驟一:Gain Map(SPC)</h2>
+<h3>目的</h3>
+<p>PD 像素(遮光 / 分光結構)靈敏度低於一般像素,需以平場(flat-field)影像建立左 / 右 gain map,補償增益後才能準確計算 phase disparity。</p>
+
+<h3>測試場景設定</h3>
+<table>
+<tr><th style="width:26%">參數</th><th>設定值</th></tr>
+<tr><td>鏡頭位置</td><td><code>AF_CAL_INF</code> 與 <code>AF_CAL_MACRO</code> 的中點</td></tr>
+<tr><td>光源</td><td>D50 或 D65(與 LSC 校正相同光源)</td></tr>
+<tr><td>Sensor gain</td><td>Metal-shield / 2x1 OCL:analog = digital = 1X;Dual-PD:<b>analog = 2X</b>、digital = 1X</td></tr>
+<tr><td>曝光</td><td>中央 10%×10% ROI 內,左右 PD 像素平均值介於 100–950 LSB(10-bit)</td></tr>
+<tr><td>Frame average</td><td>與 LSC 校正相同的平均張數</td></tr>
+</table>
+
+<div class="warn"><b>關鍵陷阱 — Blooming(電荷溢出):</b>Dual-PD 在 sensor gain 1X–2X 之間,左右光電二極體間可能發生 blooming,使平場響應變形、gain map 失真;解法是 analog gain 設 2X,讓 blooming 門檻貼近 ADC 上限。Metal-shield 型則要確保一般像素不飽和,避免電荷溢入遮光像素。</div>
+
+<h3>流程</h3>
+<ol class="flow">
+<li>架設平場測試場景(如上表)。</li>
+<li>OIS 模組先完成 OIS 校正。</li>
+<li>拍攝平場影像:Sparse PDAF 用全解析度 RAW(由 DLL 解析 PD 像素);Dual-PD 用全解析度 RAW 或 tail mode buffer(如 IMX362 Mode 4;buffer 必須先解析成左右影像對)。</li>
+<li>呼叫 <code>PDAF_Cal_get_gainmap(...)</code>(Dual-PD 用 <code>PDAF_Cal_get_gainmap_2pd(...)</code>);輸入含影像寬高、black level、bit depth;若 sensor 有 flip/mirror 需先還原。</li>
+<li>檢查回傳碼(像素飽和、gain map 異常等);有錯即中止,勿燒錄無效資料。</li>
+<li>將 gain map 寫入 NVM/OTP。</li>
+</ol>
+<div class="note">產出的 gain map 固定為 13×17(高×寬);NVM/OTP 格式支援可變尺寸。Dual-PD 的 phase 計算只用 2×2 binned 綠色像素;tail mode 若只輸出 Y,需把 R、B 權重設 0 使 Y = G。</div>
+
+<!-- 5 -->
+<h2><span class="no">5</span>校正步驟二:DCC(Defocus Conversion Coefficient)</h2>
+<h3>定義</h3>
+<div class="formula">DCC = Δ鏡頭位置 [DAC] / Δphase disparity [pixel]    (單位:<span class="hl">DAC/pixel</span>)</div>
+<ul class="plain">
+<li>QTI 定義下 DCC 為<b>無正負號</b>、存為正值;工具回報負值即校正無效(通常是 sensor config 的 LEFT/RIGHT 標記顛倒)。</li>
+<li>因鏡頭場曲與 shading,周邊與中央的 k 值不同(周邊通常較高),故以區塊化 DCC map 表達,而非單一係數。</li>
+</ul>
+
+<h3>測試場景設定</h3>
+<table>
+<tr><th style="width:26%">參數</th><th>設定值</th></tr>
+<tr><td>Chart</td><td>垂直線 chart(強烈建議,視差估測比 diamond chart 均勻)</td></tr>
+<tr><td>Chart 距離</td><td>對應「INF 與 MACRO 中點鏡頭位置」的物距,一般 20–30 cm(望遠鏡頭可達 2 m)</td></tr>
+<tr><td>Chart 尺寸</td><td>相機 FOV 覆蓋 chart 有效區的 85%–95%</td></tr>
+<tr><td>光源</td><td>≥ 400 lux,D50 / D65</td></tr>
+<tr><td>Sensor gain</td><td>同 gain map 校正</td></tr>
+<tr><td>曝光</td><td>Chart 白底對應的中央 10%×10% ROI,左右 PD 平均值 300–950 LSB</td></tr>
+</table>
+<div class="warn"><b>常見錯誤:</b>chart 太小 / 太大、旋轉、傾斜、過曝——都會導致<b>系統性</b> DCC 誤差,量再多次也救不回來。</div>
+
+<h3>鏡頭掃描範圍</h3>
+<div class="formula">FAR_LP_LIMIT  = AF_CAL_INF − (MACRO − INF) × DCC_LP_FAR_MARGIN
+NEAR_LP_LIMIT = AF_CAL_MACRO + (MACRO − INF) × DCC_LP_NEAR_MARGIN
+LP_STEP_SIZE  = |NEAR − FAR| / 9</div>
+<ul class="plain">
+<li>非望遠鏡頭:margin 預設 0.0。</li>
+<li>望遠鏡頭:margin 建議 0.10;場曲超過 10% 的鏡頭應在 DCC 校正前篩除(角落 INF/MACRO 位置與中央差異 &gt; 0.10 × |MACRO − INF| 即淘汰),否則會觸發 <code>0x2000: Focus peak is out of boundary</code>。</li>
+</ul>
+
+<h3>流程</h3>
+<ol class="flow">
+<li>架設 chart 場景(如上表);AF 校正須已完成。</li>
+<li>鏡頭移到 <code>FAR_LP_LIMIT</code>,拍第 1 張 RAW,呼叫 <code>PDAF_Cal_add_raw(...)</code>(Dual-PD 用 <code>PDAF_Cal_add_raw_2pd(...)</code>)。</li>
+<li>每次朝 <code>NEAR_LP_LIMIT</code> 移動 1/9 行程,待鏡頭穩定後拍照並入堆疊。</li>
+<li>重複至第 10 張(共 10 個鏡頭位置 → 10 組 phase disparity + focus value)。</li>
+<li>呼叫 <code>PDAF_Cal_get_dccmap(...)</code>:影像切成 8×6 區域,各區以線性回歸求 DCC → DCC map。</li>
+<li>檢查回傳碼;有錯即中止並查根因。</li>
+<li>將 DCC map 寫入 NVM/OTP。</li>
+</ol>
+
+<h3>驗證(整合於校正流程)</h3>
+<ul class="plain">
+<li>掃描期間同時計算 focus value,以多項式回歸求「真實」峰值鏡頭位置。</li>
+<li>DCC 誤差 = |phase disparity 直線 y 截距推得的位置 − focus 峰值位置|,再以 FAR–NEAR 行程正規化。</li>
+<li>預設容差:Metal-shield <b>20%</b>、2x1 OCL <b>15%</b>、Dual-PD <b>10%</b>(<code>DCC_VAL_TOL_SPARSE / _2BY1 / _DPD</code>,同為 8×6 grid,勿隨意放寬)。</li>
+<li>健康的 DCC map 應為平滑曲面;出現大量局部極值即為校正異常。</li>
+</ul>
+
+<!-- 6 -->
+<h2><span class="no">6</span>校正資料格式(OTP/EEPROM, Version 4)</h2>
+<p>以 <code>PDAF_Cal_get_calibration_block(...)</code> 取得燒錄 buffer,格式定義於 <code>PDAFCalibrationTools_EEPROM.h</code>:</p>
+<table>
+<tr><th style="width:32%">位址</th><th>內容</th></tr>
+<tr><td class="num">0x0000–0x0001</td><td>版本號</td></tr>
+<tr><td class="num">0x0002–0x0005</td><td>Gain Map 寬 / 高</td></tr>
+<tr><td class="num">0x0006–0x01BF</td><td>Left GainMap[0..220](各 2 bytes,H/L)</td></tr>
+<tr><td class="num">0x01C0–0x0379</td><td>Right GainMap[0..220]</td></tr>
+<tr><td class="num">0x037A–0x037B</td><td>DCC Q Format</td></tr>
+<tr><td class="num">0x037C–0x037F</td><td>DCC Map 寬 / 高</td></tr>
+<tr><td class="num">0x0380–0x03DF</td><td>DccMap[0..47]</td></tr>
+<tr><td class="num">0x03E0</td><td>Checksum %256</td></tr>
+</table>
+<h3>主要驗證參數</h3>
+<ul class="plain">
+<li><code>pd_max_limit</code>(建議 950)/ <code>pd_min_limit</code>(建議 100):平場 LPF 後 PD 像素上下限。</li>
+<li><code>gain_max_limit</code>:gain 上限,不得超過 7.999(工具限制)。</li>
+</ul>
+
+<!-- 7 -->
+<h2><span class="no">7</span>演算法開發者 Checklist</h2>
+<ul class="check">
+<li>取得並核對 sensor configuration(PD 座標排序、canonical orientation)</li>
+<li>確認 sensor 類型:metal-shield / 2x1 OCL / dual-PD(影響 gain、API、容差)</li>
+<li>OIS → AF → LSC/Gain Map → DCC 的校正順序正確</li>
+<li>Gain map 校正時檢查 blooming 與飽和(dual-PD analog gain = 2X)</li>
+<li>DCC chart 距離 / 尺寸 / 姿態 / 曝光符合規範</li>
+<li>DCC 為正值(負值 = LEFT/RIGHT 顛倒)</li>
+<li>DCC map 平滑、驗證誤差在容差內</li>
+<li>EEPROM 資料含 checksum,燒錄前先驗證回讀</li>
+<li>Runtime 端:PDLIB 讀入 gain map 先做 PD 增益補償,再算 disparity,最後用 per-region DCC 做 phase→defocus 轉換;殘餘誤差交由 Contrast AF 微調</li>
+</ul>
+
+<!-- 8 -->
+<h2><span class="no">8</span>參考資料</h2>
+<ul class="plain">
+<li>Qualcomm,《PDAF Module Calibration Guide》,80-NV125-1 Rev. L5 —
+<a href="https://usermanual.wiki/Pdf/80NV1251PDAFModuleCalibrationGuide.750511322/help">usermanual.wiki 存檔</a></li>
+<li>US10387477 / US20180349378A1 — Calibration for PDAF camera systems(Qualcomm 專利)</li>
+<li>US10070042 — Method and system of self-calibration for PDAF(自校正方向)</li>
+<li>CN106556960B — DCC 驗證方法(以 CDAF 對照驗證 DCC 的產線手法)</li>
+</ul>
+
+<footer>本指南依 Qualcomm 80-NV125-1 Rev. L5 整理;細部步驟展開請見同系列文件《DCC 校正 Step-by-Step 詳解》。</footer>
+
+</div>
+</body>
+</html>

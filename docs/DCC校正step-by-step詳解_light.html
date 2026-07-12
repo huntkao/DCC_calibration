@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC 校正 Step-by-Step 詳解 — Metal-Shield PDAF(Light)</title>
+<style>
+:root{
+  --paper:#FFFFFF; --card:#FCFDFD; --ink:#1A222B; --ink2:#414D59;
+  --head:#10181F;
+  --teal:#147681; --teal-deep:#0A525B; --teal-soft:#EDF7F8;
+  --left:#2757B8; --right:#C55F12;
+  --rule:#E9EEF1; --warn-bg:#FEF9F1; --warn-bd:#F2CE99;
+  --ok:#4CAF7D; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;line-height:1.8;font-size:15.5px}
+.wrap{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:1px solid var(--rule);padding:30px 0 26px;margin-bottom:38px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--teal-deep);text-transform:uppercase;margin-bottom:12px}
+h1{font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;font-size:clamp(26px,5vw,38px);line-height:1.25;font-weight:700;color:var(--head)}
+h1 .en{color:var(--teal)}
+.sub{color:var(--ink2);margin-top:12px;font-size:14.5px}
+h2{font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;font-size:21px;margin:56px 0 8px;display:flex;align-items:baseline;gap:12px;color:var(--head)}
+h2 .ph{font-family:var(--mono);font-size:12.5px;color:var(--teal-deep);background:var(--teal-soft);border:1px solid #CFE8EA;padding:2px 10px;border-radius:999px;letter-spacing:.08em;white-space:nowrap}
+h3{font-size:16.5px;margin:28px 0 8px;color:var(--head)}
+p{margin:10px 0}
+.lead{color:var(--ink2)}
+code,.mono{font-family:var(--mono);font-size:.92em;background:#F3F7F8;padding:1px 6px;border-radius:4px;color:#0A525B}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:18px 20px;margin:16px 0}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;background:#fff}
+th{background:#F5F8FA;color:var(--head);text-align:left;padding:9px 12px;font-weight:600;font-size:13px;border:1px solid var(--rule)}
+td{border:1px solid var(--rule);padding:8px 12px;vertical-align:top}
+td.num{font-family:var(--mono);white-space:nowrap;color:#414D59}
+.formula{font-family:var(--mono);font-size:14px;background:#F6FAFA;color:#173038;border:1px solid #DDEBEC;border-radius:10px;padding:15px 18px;margin:16px 0;overflow-x:auto;white-space:pre;line-height:1.95}
+.formula .hl{color:#A34A05;font-weight:600}
+.note{background:var(--teal-soft);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14.5px}
+.warn{background:var(--warn-bg);border-left:3px solid var(--warn-bd);border-radius:0 8px 8px 0;padding:13px 16px;margin:16px 0;font-size:14.5px}
+.warn b{color:#7F4E08}
+figure{margin:22px 0}
+figure svg{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--rule);border-radius:10px}
+figcaption{font-size:13px;color:var(--ink2);margin-top:9px;text-align:center}
+.steps{counter-reset:st;list-style:none;margin:14px 0}
+.steps>li{counter-increment:st;position:relative;padding:0 0 24px 52px;border-left:1.5px solid var(--rule);margin-left:17px}
+.steps>li:last-child{border-left-color:transparent;padding-bottom:4px}
+.steps>li::before{content:counter(st);position:absolute;left:-18px;top:-2px;width:34px;height:34px;border-radius:50%;background:#fff;border:1.5px solid var(--teal);color:var(--teal-deep);font-family:var(--mono);font-weight:600;display:flex;align-items:center;justify-content:center;font-size:15px}
+.steps>li>b{display:block;font-size:16px;margin-bottom:4px;color:var(--head)}
+.tagL{color:var(--left);font-weight:700}
+.tagR{color:var(--right);font-weight:700}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink2);justify-content:center;margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dotL,.dotR{width:12px;height:12px;border-radius:2px;display:inline-block}
+.dotL{background:var(--left)} .dotR{background:var(--right)}
+footer{margin-top:64px;border-top:1px solid var(--rule);padding-top:16px;font-size:12.5px;color:var(--ink2)}
+@media(max-width:560px){.steps>li{padding-left:40px}.formula{font-size:12.5px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">PDAF Module Calibration · Production Line Procedure</div>
+  <h1>DCC 校正 <span class="en">Step-by-Step</span> 詳解</h1>
+  <p class="sub">以 Metal-Shield(遮光式)PDAF 感光元件為例 · 依 Qualcomm 80-NV125-1 流程展開 · 所有數值為假設的教學範例</p>
+</header>
+
+<!-- ============ 假設條件 ============ -->
+<h2><span class="ph">SPEC</span>本文假設條件</h2>
+<p class="lead">DCC 的目標只有一件事:量出「鏡頭要移動多少 DAC,才能消除 1 pixel 的相位視差」。以下用一組具體的假想模組貫穿全文。</p>
+
+<table>
+<tr><th style="width:30%">項目</th><th>假設值</th></tr>
+<tr><td>Sensor</td><td>Sparse metal-shield PDAF,解析度 <span class="mono">4608 × 3456</span>,10-bit RAW(0–1023 LSB)</td></tr>
+<tr><td>PD pattern</td><td>每 <span class="mono">32 × 32</span> pixel 區塊內含 8 對 <span class="tagL">左遮光(L)</span> / <span class="tagR">右遮光(R)</span> G 像素</td></tr>
+<tr><td>VCM 馬達</td><td>10-bit DAC(0–1023),數值越大鏡頭越靠近 Macro(正向致動器)</td></tr>
+<tr><td>AF 校正結果</td><td><span class="mono">AF_CAL_INF = 220 DAC</span>(無限遠合焦)、<span class="mono">AF_CAL_MACRO = 620 DAC</span>(10 cm 合焦)</td></tr>
+<tr><td>Margin</td><td>非望遠鏡頭 → <span class="mono">DCC_LP_FAR_MARGIN = DCC_LP_NEAR_MARGIN = 0.0</span></td></tr>
+<tr><td>DCC map</td><td>影像切 <span class="mono">8 × 6</span>(寬 × 高)= 48 區塊,每區塊一個 DCC 值</td></tr>
+<tr><td>驗證容差</td><td>Metal-shield 型預設 <span class="mono">20%</span>(<span class="mono">DCC_VAL_TOL_SPARSE</span>)</td></tr>
+</table>
+
+<figure>
+<svg viewBox="0 0 760 260" role="img" aria-label="遮光式 PD 像素示意">
+  <text x="20" y="28" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#414D59">32×32 pattern 內的一組 L/R 遮光像素(放大示意)</text>
+  <!-- bayer grid -->
+  <g transform="translate(30,50)">
+    <!-- 8x4 bayer cells, 40px -->
+    <g font-family="ui-monospace, Menlo, monospace" font-size="11" text-anchor="middle">
+    <!-- row pattern GR / BG -->
+    <!-- draw cells -->
+    <g>
+      <!-- row0 -->
+      <rect x="0" y="0" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="20" y="25" fill="#4E6F49">Gr</text>
+      <rect x="40" y="0" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="60" y="25" fill="#8F4646">R</text>
+      <rect x="80" y="0" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="100" y="25" fill="#4E6F49">Gr</text>
+      <rect x="120" y="0" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="140" y="25" fill="#8F4646">R</text>
+      <rect x="160" y="0" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="180" y="25" fill="#4E6F49">Gr</text>
+      <rect x="200" y="0" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="220" y="25" fill="#8F4646">R</text>
+      <rect x="240" y="0" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="260" y="25" fill="#4E6F49">Gr</text>
+      <rect x="280" y="0" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="300" y="25" fill="#8F4646">R</text>
+    </g>
+    <g>
+      <!-- row1 : B G with L shielded at col1 -->
+      <rect x="0" y="40" width="40" height="40" fill="#EBF1FB" stroke="#D8E0EC"/><text x="20" y="65" fill="#4F628C">B</text>
+      <!-- L shielded pixel -->
+      <rect x="40" y="40" width="40" height="40" fill="#EDF7EB" stroke="#2757B8" stroke-width="2"/>
+      <rect x="60" y="40" width="20" height="40" fill="#2757B8"/>
+      <text x="50" y="65" fill="#222C36" font-weight="600">L</text>
+      <rect x="80" y="40" width="40" height="40" fill="#EBF1FB" stroke="#D8E0EC"/><text x="100" y="65" fill="#4F628C">B</text>
+      <rect x="120" y="40" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="140" y="65" fill="#4E6F49">Gb</text>
+      <rect x="160" y="40" width="40" height="40" fill="#EBF1FB" stroke="#D8E0EC"/><text x="180" y="65" fill="#4F628C">B</text>
+      <!-- R shielded pixel -->
+      <rect x="200" y="40" width="40" height="40" fill="#EDF7EB" stroke="#C55F12" stroke-width="2"/>
+      <rect x="200" y="40" width="20" height="40" fill="#C55F12"/>
+      <text x="230" y="65" fill="#222C36" font-weight="600">R</text>
+      <rect x="240" y="40" width="40" height="40" fill="#EBF1FB" stroke="#D8E0EC"/><text x="260" y="65" fill="#4F628C">B</text>
+      <rect x="280" y="40" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="300" y="65" fill="#4E6F49">Gb</text>
+    </g>
+    <g>
+      <!-- row2 same as row0 -->
+      <rect x="0" y="80" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="20" y="105" fill="#4E6F49">Gr</text>
+      <rect x="40" y="80" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="60" y="105" fill="#8F4646">R</text>
+      <rect x="80" y="80" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="100" y="105" fill="#4E6F49">Gr</text>
+      <rect x="120" y="80" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="140" y="105" fill="#8F4646">R</text>
+      <rect x="160" y="80" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="180" y="105" fill="#4E6F49">Gr</text>
+      <rect x="200" y="80" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="220" y="105" fill="#8F4646">R</text>
+      <rect x="240" y="80" width="40" height="40" fill="#EDF7EB" stroke="#DCE6DA"/><text x="260" y="105" fill="#4E6F49">Gr</text>
+      <rect x="280" y="80" width="40" height="40" fill="#FBECEC" stroke="#EBD8D8"/><text x="300" y="105" fill="#8F4646">R</text>
+    </g>
+    </g>
+  </g>
+  <!-- microlens + shield cross-section -->
+  <g transform="translate(420,60)">
+    <text x="150" y="-12" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#414D59" text-anchor="middle">剖面:金屬遮罩只讓半邊光錐進入</text>
+    <!-- Left-shielded pixel -->
+    <path d="M20 40 Q60 0 100 40" fill="none" stroke="#B3C1CC" stroke-width="2"/>
+    <rect x="60" y="42" width="42" height="8" fill="#2757B8"/>
+    <rect x="18" y="42" width="42" height="8" fill="none" stroke="#D5DEE4" stroke-dasharray="3 3"/>
+    <rect x="18" y="52" width="84" height="26" fill="#EDF7EB" stroke="#DCE6DA"/>
+    <text x="60" y="70" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#2757B8" text-anchor="middle" font-weight="600">L 像素</text>
+    <line x1="30" y1="8" x2="46" y2="40" stroke="#2757B8" stroke-width="1.6"/>
+    <line x1="46" y1="4" x2="56" y2="40" stroke="#2757B8" stroke-width="1.6"/>
+    <!-- Right-shielded pixel -->
+    <path d="M200 40 Q240 0 280 40" fill="none" stroke="#B3C1CC" stroke-width="2"/>
+    <rect x="198" y="42" width="42" height="8" fill="#C55F12"/>
+    <rect x="240" y="42" width="42" height="8" fill="none" stroke="#D5DEE4" stroke-dasharray="3 3"/>
+    <rect x="198" y="52" width="84" height="26" fill="#EDF7EB" stroke="#DCE6DA"/>
+    <text x="240" y="70" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#C55F12" text-anchor="middle" font-weight="600">R 像素</text>
+    <line x1="270" y1="8" x2="254" y2="40" stroke="#C55F12" stroke-width="1.6"/>
+    <line x1="254" y1="4" x2="244" y2="40" stroke="#C55F12" stroke-width="1.6"/>
+    <text x="150" y="110" font-size="12.5" fill="#414D59" text-anchor="middle">L 像素只看到光圈右半邊、R 像素只看到左半邊</text>
+    <text x="150" y="130" font-size="12.5" fill="#414D59" text-anchor="middle">→ 離焦時兩組影像產生水平位移(phase disparity)</text>
+  </g>
+</svg>
+<figcaption>圖 1 · 遮光式 PD 像素:Bayer 陣列中部分 G 像素被金屬遮罩遮住一半(顏色實心處為遮罩)</figcaption>
+</figure>
+
+<!-- ============ Phase A ============ -->
+<h2><span class="ph">PHASE A</span>前置條件確認</h2>
+<ol class="steps">
+<li><b>AF 校正已完成</b>
+本模組量得 <code>AF_CAL_INF = 220 DAC</code>、<code>AF_CAL_MACRO = 620 DAC</code>。DCC 校正的掃描範圍完全由這兩個值推導,<b>沒有 AF 校正結果就不能做 DCC</b>。</li>
+<li><b>Gain Map(SPC)已完成並可套用</b>
+PD 像素經過 L/R gain map 補償後,平場下 L 與 R 訊號位準才會一致;否則視差計算會被亮度差污染。</li>
+<li><b>Sensor configuration 已核對</b>
+PD 像素座標(依 x 遞增排序)、pattern 週期 32×32、影像為 canonical orientation(flip/mirror 關閉)。<b>L/R 標記若顛倒,算出的 DCC 會是負值,工具直接回報校正失敗。</b></li>
+<li><b>OIS(若有)已校正並鎖定於參考 XY 位置</b>
+確保鏡頭 CRA 特性符合實際使用情況,否則 DCC map 形狀會偏。</li>
+</ol>
+
+<!-- ============ Phase B ============ -->
+<h2><span class="ph">PHASE B</span>測試場景架設</h2>
+
+<h3>B-1 · 計算 chart 擺放距離</h3>
+<p>Chart 要放在「鏡頭位於掃描範圍<b>正中間</b>時剛好合焦」的物距上:</p>
+<div class="formula">中間鏡頭位置 = (AF_CAL_INF + AF_CAL_MACRO) / 2
+             = (220 + 620) / 2 = <span class="hl">420 DAC</span>
+
+查本鏡頭的 DAC ↔ 物距對照 → 420 DAC 合焦物距 ≈ <span class="hl">25 cm</span></div>
+<p>所以 chart 面板中心與模組入瞳的距離設為 <b>25 cm</b>(一般模組落在 20–30 cm;望遠鏡頭可能到 2 m)。</p>
+
+<h3>B-2 · 決定 chart 尺寸與型式</h3>
+<p>使用<b>垂直線 chart</b>(優先,視差估測比 diamond chart 均勻)。尺寸原則:相機 FOV 覆蓋 chart 有效區的 <b>85%–95%</b>。假設水平 FOV = 78°,在 25 cm 處視野寬約 <span class="mono">2 × 25 × tan(39°) ≈ 40.5 cm</span>,則 chart 有效區寬度約 <b>43–48 cm</b>。</p>
+
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="測試場景架設">
+  <!-- bench line -->
+  <line x1="30" y1="250" x2="730" y2="250" stroke="#D5DEE4" stroke-width="2"/>
+  <!-- camera module -->
+  <g transform="translate(60,150)">
+    <rect x="0" y="30" width="70" height="70" rx="6" fill="#222C36"/>
+    <rect x="70" y="50" width="16" height="30" fill="#147681"/>
+    <circle cx="86" cy="65" r="9" fill="#173038" stroke="#147681" stroke-width="2"/>
+    <text x="35" y="120" font-size="12.5" fill="#414D59" text-anchor="middle">待測模組</text>
+    <text x="35" y="138" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#414D59" text-anchor="middle">VCM 0–1023 DAC</text>
+  </g>
+  <!-- FOV cone -->
+  <line x1="146" y1="215" x2="560" y2="95" stroke="#147681" stroke-dasharray="5 4" stroke-width="1.5"/>
+  <line x1="146" y1="215" x2="560" y2="335" stroke="#147681" stroke-dasharray="5 4" stroke-width="1.5" opacity=".35"/>
+  <!-- chart -->
+  <g transform="translate(560,70)">
+    <rect x="0" y="0" width="120" height="180" fill="#fff" stroke="#222C36" stroke-width="2.5"/>
+    <g stroke="#222C36" stroke-width="7">
+      <line x1="20" y1="16" x2="20" y2="164"/>
+      <line x1="44" y1="16" x2="44" y2="164"/>
+      <line x1="68" y1="16" x2="68" y2="164"/>
+      <line x1="92" y1="16" x2="92" y2="164"/>
+    </g>
+    <text x="60" y="205" font-size="12.5" fill="#414D59" text-anchor="middle">垂直線 chart</text>
+    <text x="60" y="222" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#414D59" text-anchor="middle">FOV 覆蓋 85–95%</text>
+  </g>
+  <!-- distance arrow -->
+  <g>
+    <line x1="150" y1="250" x2="556" y2="250" stroke="#C55F12" stroke-width="2" marker-start="url(#a1)" marker-end="url(#a2)"/>
+    <rect x="308" y="256" width="96" height="24" rx="4" fill="#FEF9F1" stroke="#F2CE99"/>
+    <text x="356" y="273" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#7F4E08" text-anchor="middle">25 cm</text>
+  </g>
+  <!-- light -->
+  <g transform="translate(360,26)">
+    <rect x="-50" y="0" width="100" height="16" rx="8" fill="#FFDCA0"/>
+    <g stroke="#F2CE99" stroke-width="1.6">
+      <line x1="-30" y1="20" x2="-36" y2="40"/><line x1="0" y1="20" x2="0" y2="40"/><line x1="30" y1="20" x2="36" y2="40"/>
+    </g>
+    <text x="0" y="-8" font-size="12" fill="#414D59" text-anchor="middle">D65 · ≥400 lux · 均勻無頻閃</text>
+  </g>
+  <defs>
+    <marker id="a1" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M8 0 L0 4 L8 8 z" fill="#C55F12"/></marker>
+    <marker id="a2" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#C55F12"/></marker>
+  </defs>
+</svg>
+<figcaption>圖 2 · 場景架設:chart 置於掃描中點鏡頭位置(420 DAC)對應的合焦物距</figcaption>
+</figure>
+
+<h3>B-3 · 光源與曝光設定</h3>
+<table>
+<tr><th>項目</th><th>設定</th><th>檢查方式</th></tr>
+<tr><td>光源</td><td>D50 / D65,照度 ≥ 400 lux</td><td>照度計實測 chart 面</td></tr>
+<tr><td>Sensor gain</td><td class="num">analog = 1X, digital = 1X(metal-shield 型)</td><td>暫存器回讀</td></tr>
+<tr><td>曝光</td><td>chart <b>白底</b>對應的中央 10%×10% ROI 內,<span class="tagL">L</span>、<span class="tagR">R</span> 像素平均值各落在 <b>300–950 LSB</b>(10-bit)</td><td>抓一張 RAW 統計</td></tr>
+<tr><td>一般像素</td><td>不得飽和</td><td>直方圖確認無 1023 峰</td></tr>
+<tr><td>Frame averaging</td><td>視差重複性差時啟用多張平均</td><td>同位置重拍比對</td></tr>
+</table>
+<div class="warn"><b>為什麼一般像素不能飽和?</b> 遮光像素靈敏度低,鄰近的一般像素若飽和,電荷會溢流(blooming)進遮光像素,直接污染視差值。這是 metal-shield 型最常見的隱性誤差來源。</div>
+
+<div class="warn"><b>Chart 五大 NG:</b>太小(背景入鏡)、太大(線條過粗於視差搜尋窗)、旋轉、傾斜(左右物距不等)、過曝。任何一項都會造成<b>系統性</b> DCC 偏差,量再多次也救不回來。</div>
+
+<!-- ============ Phase C ============ -->
+<h2><span class="ph">PHASE C</span>鏡頭掃描與影像擷取(10 個位置)</h2>
+
+<h3>C-1 · 計算掃描範圍與步距</h3>
+<div class="formula">FAR_LP_LIMIT  = AF_CAL_INF − (MACRO−INF) × DCC_LP_FAR_MARGIN
+             = 220 − 400 × 0.0 = <span class="hl">220 DAC</span>
+
+NEAR_LP_LIMIT = AF_CAL_MACRO + (MACRO−INF) × DCC_LP_NEAR_MARGIN
+             = 620 + 400 × 0.0 = <span class="hl">620 DAC</span>
+
+LP_STEP_SIZE  = |620 − 220| / 9 = <span class="hl">44.44 DAC</span>   (共 10 個取樣點)</div>
+
+<figure>
+<svg viewBox="0 0 760 210" role="img" aria-label="鏡頭掃描 DAC 尺規">
+  <text x="30" y="30" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#414D59">Lens sweep:FAR → NEAR,每步 44.44 DAC,每點拍 1 張 RAW</text>
+  <!-- ruler -->
+  <line x1="60" y1="110" x2="700" y2="110" stroke="#222C36" stroke-width="3"/>
+  <!-- 10 ticks -->
+  <g font-family="ui-monospace, Menlo, monospace" font-size="10.5" text-anchor="middle">
+    <g><circle cx="60"  cy="110" r="8" fill="#147681"/><text x="60"  y="140" fill="#222C36">220</text><text x="60"  y="88" fill="#147681" font-weight="600">#1</text></g>
+    <g><circle cx="131" cy="110" r="6" fill="#6FAFB6"/><text x="131" y="140" fill="#414D59">264</text><text x="131" y="90" fill="#414D59">#2</text></g>
+    <g><circle cx="202" cy="110" r="6" fill="#6FAFB6"/><text x="202" y="140" fill="#414D59">309</text><text x="202" y="90" fill="#414D59">#3</text></g>
+    <g><circle cx="273" cy="110" r="6" fill="#6FAFB6"/><text x="273" y="140" fill="#414D59">353</text><text x="273" y="90" fill="#414D59">#4</text></g>
+    <g><circle cx="344" cy="110" r="6" fill="#6FAFB6"/><text x="344" y="140" fill="#414D59">398</text><text x="344" y="90" fill="#414D59">#5</text></g>
+    <g><circle cx="415" cy="110" r="6" fill="#6FAFB6"/><text x="415" y="140" fill="#414D59">442</text><text x="415" y="90" fill="#414D59">#6</text></g>
+    <g><circle cx="486" cy="110" r="6" fill="#6FAFB6"/><text x="486" y="140" fill="#414D59">487</text><text x="486" y="90" fill="#414D59">#7</text></g>
+    <g><circle cx="557" cy="110" r="6" fill="#6FAFB6"/><text x="557" y="140" fill="#414D59">531</text><text x="557" y="90" fill="#414D59">#8</text></g>
+    <g><circle cx="628" cy="110" r="6" fill="#6FAFB6"/><text x="628" y="140" fill="#414D59">576</text><text x="628" y="90" fill="#414D59">#9</text></g>
+    <g><circle cx="700" cy="110" r="8" fill="#C55F12"/><text x="700" y="140" fill="#222C36">620</text><text x="700" y="88" fill="#C55F12" font-weight="600">#10</text></g>
+  </g>
+  <text x="60" y="168" font-size="12.5" fill="#147681" text-anchor="middle">FAR_LP_LIMIT</text>
+  <text x="60" y="185" font-size="12" fill="#414D59" text-anchor="middle">(= AF_CAL_INF)</text>
+  <text x="700" y="168" font-size="12.5" fill="#C55F12" text-anchor="middle">NEAR_LP_LIMIT</text>
+  <text x="700" y="185" font-size="12" fill="#414D59" text-anchor="middle">(= AF_CAL_MACRO)</text>
+  <text x="380" y="185" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#414D59" text-anchor="middle">↑ 中點 420 DAC ≈ chart 合焦位置(#5 與 #6 之間)</text>
+</svg>
+<figcaption>圖 3 · 10 個鏡頭取樣位置。#1–#5 前焦(視差為負)、#6–#10 後焦(視差為正)</figcaption>
+</figure>
+
+<h3>C-2 · 逐張擷取流程</h3>
+<ol class="steps">
+<li><b>鏡頭移到 #1(220 DAC)</b>
+下 DAC 指令後<b>等待鏡頭穩定</b>(VCM 典型 settle time 10–30 ms;彈簧振鈴未停就拍會抖出視差雜訊)。</li>
+<li><b>拍攝全解析度 RAW</b>
+Sparse PDAF 必須給<b>全幅 RAW</b>(4608×3456,10-bit),PD 像素的解析由校正 DLL 依 sensor configuration 進行,不要自己先抽。</li>
+<li><b>呼叫 <code>PDAF_Cal_add_raw(...)</code> 入堆疊</b>
+傳入影像指標、寬高、black level(如 64 LSB)、bit depth、目前鏡頭 DAC 值。<b>檢查回傳碼</b>——飽和、曝光不足、chart 偵測失敗等任一錯誤都必須立刻中止。</li>
+<li><b>前進 44.44 DAC 到下一位置,重複 1–3</b>
+實務上 DAC 取整數:220, 264, 309, 353, 398, 442, 487, 531, 576, 620。方向<b>單向由 FAR 到 NEAR</b>,避免 VCM 磁滯(hysteresis)讓同一 DAC 對應到不同實際鏡頭位置。</li>
+<li><b>第 10 張(620 DAC)入堆疊後,擷取階段結束</b>
+堆疊內現在有 10 張 RAW + 10 個對應 DAC 值。</li>
+</ol>
+
+<!-- ============ Phase D ============ -->
+<h2><span class="ph">PHASE D</span>相位視差計算(DLL 內部,理解用)</h2>
+<p class="lead">這一段是 <code>PDAF_Cal_get_dccmap(...)</code> 內部對每一張影像做的事。開發演算法時,你的 runtime PDLIB 也是同一套邏輯。</p>
+
+<ol class="steps">
+<li><b>解析 PD 像素 → 產生 L / R 兩張低解析影像</b>
+依 sensor configuration 從全幅 RAW 抽出所有 <span class="tagL">L</span> 與 <span class="tagR">R</span> 像素。以 32×32 pattern、每 pattern 8 對計算:每列 4608/32 = 144 對,共 3456/32 = 108 個 pattern 列 → L/R 影像各約 <span class="mono">144 × 216</span>(依 pattern 內配置而定)。</li>
+<li><b>套用 Gain Map 補償</b>
+L 影像乘上左 gain map、R 影像乘上右 gain map(13×17 內插到 PD 影像尺寸),消除遮光造成的 shading 與 L/R 靈敏度差。</li>
+<li><b>切成 8×6 區域</b>
+每區約 <span class="mono">576 × 576</span> 原始像素(對應 PD 影像上約 18 × 36 個 PD 樣本)。之後所有計算都逐區獨立進行。</li>
+<li><b>區域內做 1D 水平位移搜尋</b>
+把 L、R 訊號沿水平方向以 SAD(絕對差和)在 ±搜尋窗內滑動比對,SAD 最低點附近再做次像素內插 → 得該區的 <b>phase disparity(單位:pixel,含正負號)</b>。</li>
+</ol>
+
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="L/R 訊號位移示意">
+  <text x="30" y="28" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#414D59">同一區域的 L / R 一維訊號(垂直線 chart 的水平剖面)</text>
+  <!-- axes -->
+  <line x1="50" y1="200" x2="720" y2="200" stroke="#D5DEE4" stroke-width="1.5"/>
+  <!-- L signal: square-ish wave -->
+  <path d="M50 170 L110 170 L110 90 L160 90 L160 170 L250 170 L250 90 L300 90 L300 170 L390 170 L390 90 L440 90 L440 170 L530 170 L530 90 L580 90 L580 170 L700 170"
+        fill="none" stroke="#2757B8" stroke-width="3"/>
+  <!-- R signal shifted +36px -->
+  <path d="M50 174 L146 174 L146 94 L196 94 L196 174 L286 174 L286 94 L336 94 L336 174 L426 174 L426 94 L476 94 L476 174 L566 174 L566 94 L616 94 L616 174 L700 174"
+        fill="none" stroke="#C55F12" stroke-width="3" stroke-dasharray="7 4"/>
+  <!-- disparity arrow -->
+  <line x1="110" y1="70" x2="146" y2="70" stroke="#222C36" stroke-width="2" marker-end="url(#a3)"/>
+  <text x="128" y="58" font-family="ui-monospace, Menlo, monospace" font-size="12.5" fill="#222C36" text-anchor="middle">disparity = +2.1 px</text>
+  <text x="385" y="232" font-size="12.5" fill="#414D59" text-anchor="middle">SAD 搜尋:滑動 R 訊號找最小差 → 次像素內插取小數位</text>
+  <defs><marker id="a3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#222C36"/></marker></defs>
+</svg>
+<figcaption>圖 4 · 離焦時 <span class="tagL">L</span>、<span class="tagR">R</span> 影像水平錯開;錯開量與方向就是 phase disparity</figcaption>
+</figure>
+
+<div class="note">10 張影像 × 48 區域 = <b>480 個 disparity 值</b>,加上 10 個 DAC 位置,就是 Phase E 回歸的全部原料。同時 DLL 也對每張影像逐區計算 <b>focus value</b>(對比度銳利度),留給 Phase F 驗證用。</div>
+
+<!-- ============ Phase E ============ -->
+<h2><span class="ph">PHASE E</span>線性回歸求 DCC</h2>
+<p>以<b>中央區域(region 3,3)</b>為例,10 個位置量到的 disparity 如下(假設數據):</p>
+
+<table>
+<tr><th>#</th><th>DAC</th><th>disparity (px)</th><th>#</th><th>DAC</th><th>disparity (px)</th></tr>
+<tr><td class="num">1</td><td class="num">220</td><td class="num">−16.1</td><td class="num">6</td><td class="num">442</td><td class="num">+1.7</td></tr>
+<tr><td class="num">2</td><td class="num">264</td><td class="num">−12.4</td><td class="num">7</td><td class="num">487</td><td class="num">+5.3</td></tr>
+<tr><td class="num">3</td><td class="num">309</td><td class="num">−8.9</td><td class="num">8</td><td class="num">531</td><td class="num">+8.8</td></tr>
+<tr><td class="num">4</td><td class="num">353</td><td class="num">−5.2</td><td class="num">9</td><td class="num">576</td><td class="num">+12.5</td></tr>
+<tr><td class="num">5</td><td class="num">398</td><td class="num">−1.8</td><td class="num">10</td><td class="num">620</td><td class="num">+16.0</td></tr>
+</table>
+
+<p>對 <span class="mono">(disparity, DAC)</span> 做最小平方直線擬合 <span class="mono">DAC = k·disparity + b</span>:</p>
+<div class="formula">斜率 k = ΔDAC / Δdisparity ≈ (620−220) / (16.0−(−16.1))
+       = 400 / 32.1 ≈ <span class="hl">12.46 DAC/pixel  →  DCC(region 3,3)</span>
+
+截距 b ≈ <span class="hl">421 DAC</span>  →  disparity = 0 時的「PDAF 預測合焦位置」</div>
+
+<figure>
+<svg viewBox="0 0 760 340" role="img" aria-label="DCC 線性回歸圖">
+  <!-- plot area -->
+  <g transform="translate(80,20)">
+    <rect x="0" y="0" width="600" height="250" fill="#FDFEFE" stroke="#E9EEF1"/>
+    <!-- gridlines -->
+    <g stroke="#F1F5F7">
+      <line x1="0" y1="62.5" x2="600" y2="62.5"/><line x1="0" y1="125" x2="600" y2="125"/><line x1="0" y1="187.5" x2="600" y2="187.5"/>
+      <line x1="150" y1="0" x2="150" y2="250"/><line x1="300" y1="0" x2="300" y2="250"/><line x1="450" y1="0" x2="450" y2="250"/>
+    </g>
+    <!-- x: disparity -20..+20 => 0..600 ; y: DAC 200..640 => 250..0 -->
+    <!-- zero line -->
+    <line x1="300" y1="0" x2="300" y2="250" stroke="#D5DEE4" stroke-dasharray="4 4"/>
+    <!-- fitted line: at disp=-20 -> DAC=421-249=172(below range clamp) ; compute endpoints: disp -18 => 421-224=197 ; use disp -16.9->? draw from x for DAC 200: disp = (200-421)/12.46=-17.7 => x=300+(-17.7*15)=34.4,y=250 ; DAC640: disp=(640-421)/12.46=17.6=>x=563.6,y=0 -->
+    <line x1="34" y1="250" x2="564" y2="0" stroke="#147681" stroke-width="2.5"/>
+    <!-- data points: x=300+disp*15, y=(640-DAC)/440*250 -->
+    <g fill="#222C36">
+      <circle cx="58.5" cy="238.6" r="5"/>
+      <circle cx="114"  cy="213.6" r="5"/>
+      <circle cx="166.5" cy="188.1" r="5"/>
+      <circle cx="222"  cy="163.1" r="5"/>
+      <circle cx="273"  cy="137.5" r="5"/>
+      <circle cx="325.5" cy="112.5" r="5"/>
+      <circle cx="379.5" cy="86.9" r="5"/>
+      <circle cx="432"  cy="61.9" r="5"/>
+      <circle cx="487.5" cy="36.4" r="5"/>
+      <circle cx="540"  cy="11.4" r="5"/>
+    </g>
+    <!-- intercept marker: disp=0 -> DAC=421 -> y=(640-421)/440*250=124.4 -->
+    <circle cx="300" cy="124.4" r="7" fill="none" stroke="#C55F12" stroke-width="2.5"/>
+    <text x="312" y="118" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#C55F12">b = 421 DAC</text>
+    <!-- slope triangle -->
+    <path d="M330 108 L420 108 L420 66" fill="none" stroke="#147681" stroke-width="1.6" stroke-dasharray="4 3"/>
+    <text x="375" y="102" font-family="ui-monospace, Menlo, monospace" font-size="11.5" fill="#147681" text-anchor="middle">Δdisp = 8 px</text>
+    <text x="428" y="90" font-family="ui-monospace, Menlo, monospace" font-size="11.5" fill="#147681">ΔDAC ≈ 100</text>
+    <text x="430" y="30" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#147681" font-weight="600">k = 12.46 DAC/px = DCC</text>
+    <!-- axes labels -->
+    <g font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#414D59">
+      <text x="-8" y="254" text-anchor="end">200</text>
+      <text x="-8" y="129" text-anchor="end">420</text>
+      <text x="-8" y="8" text-anchor="end">640</text>
+      <text x="0" y="272" text-anchor="middle">−20</text>
+      <text x="150" y="272" text-anchor="middle">−10</text>
+      <text x="300" y="272" text-anchor="middle">0</text>
+      <text x="450" y="272" text-anchor="middle">+10</text>
+      <text x="600" y="272" text-anchor="middle">+20</text>
+    </g>
+    <text x="300" y="298" font-size="12.5" fill="#414D59" text-anchor="middle">phase disparity(pixel)</text>
+    <text x="-52" y="125" font-size="12.5" fill="#414D59" text-anchor="middle" transform="rotate(-90 -52 125)">鏡頭位置(DAC)</text>
+  </g>
+</svg>
+<figcaption>圖 5 · 中央區域的回歸:斜率即 DCC,截距即 PDAF 預測合焦位置。48 個區域各做一次</figcaption>
+</figure>
+
+<div class="note"><b>48 個區域各自回歸</b> → 得 8×6 DCC map。因場曲與 shading,周邊 k 值通常高於中央(例:中央 12.5,四角 14–15 DAC/px)。健康的 DCC map 是<b>平滑曲面</b>;若出現大量局部凹凸,代表某些區域視差估測失敗,必須查根因(chart 覆蓋不足、髒污、局部過曝)而不是硬燒。</div>
+
+<div class="warn"><b>DCC 符號檢查:</b>QTI 定義 DCC 為無號正值。若回歸斜率為負,DLL 回報錯誤——幾乎都是 sensor configuration 的 LEFT/RIGHT 標反了,回 Phase A 修正。</div>
+
+<!-- ============ Phase F ============ -->
+<h2><span class="ph">PHASE F</span>整合驗證(同一次掃描完成)</h2>
+<p>掃描時每張影像已同步算出 focus value(對比銳利度),用它交叉驗證 DCC:</p>
+
+<ol class="steps">
+<li><b>對 focus 曲線做多項式擬合,取峰值位置</b>
+假設中央區域 focus 峰值落在 <code>427 DAC</code>,視為「真實」合焦位置。</li>
+<li><b>與 phase 直線的截距比較</b>
+PDAF 預測 <code>b = 421 DAC</code>,誤差 <span class="mono">|427 − 421| = 6 DAC</span>。</li>
+<li><b>以掃描行程正規化,對照容差</b>
+<span class="mono">6 / 400 = 1.5%</span> ≪ metal-shield 容差 <b>20%</b> → <b style="color:var(--ok)">PASS</b>。48 區逐一判定(容差同為 8×6 grid)。</li>
+<li><b>檢查 focus 峰值不在掃描端點</b>
+若峰值卡在 220 或 620 DAC 端點,DLL 回報 <code>0x2000: Focus peak is out of boundary</code>——常見於 chart 距離錯誤或望遠鏡頭場曲 &gt;10% 未先篩除。</li>
+</ol>
+
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="驗證:focus 曲線與 phase 截距比較">
+  <g transform="translate(80,20)">
+    <rect x="0" y="0" width="600" height="220" fill="#FDFEFE" stroke="#E9EEF1"/>
+    <!-- x: DAC 220..620 => 0..600 -->
+    <!-- focus curve peak at 427 => x=(427-220)/400*600=310.5 -->
+    <path d="M0 200 C 120 190, 220 60, 310 30 C 400 60, 500 190, 600 205" fill="none" stroke="#66489F" stroke-width="3"/>
+    <!-- peak marker -->
+    <line x1="310" y1="30" x2="310" y2="220" stroke="#66489F" stroke-dasharray="4 4"/>
+    <text x="310" y="20" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#66489F" text-anchor="middle">focus 峰值 427 DAC</text>
+    <!-- phase intercept 421 => x=301.5 -->
+    <line x1="301" y1="60" x2="301" y2="220" stroke="#C55F12" stroke-width="2"/>
+    <text x="286" y="52" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#C55F12" text-anchor="end">phase 截距 421 DAC</text>
+    <!-- error brace -->
+    <path d="M301 232 L301 240 L310 240 L310 232" fill="none" stroke="#222C36" stroke-width="1.5"/>
+    <text x="322" y="244" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#222C36">誤差 6 DAC / 400 = 1.5% &lt; 20% ✓</text>
+    <g font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#414D59">
+      <text x="0" y="238" text-anchor="middle">220</text>
+      <text x="600" y="238" text-anchor="middle">620</text>
+    </g>
+    <text x="300" y="268" font-size="12.5" fill="#414D59" text-anchor="middle">鏡頭位置(DAC)</text>
+  </g>
+</svg>
+<figcaption>圖 6 · Contrast(focus)峰值 vs. PDAF 預測位置:兩者差距即 DCC 校正誤差</figcaption>
+</figure>
+
+<!-- ============ Phase G ============ -->
+<h2><span class="ph">PHASE G</span>寫入 EEPROM / OTP</h2>
+<ol class="steps">
+<li><b>取得燒錄 buffer</b>
+呼叫 <code>PDAF_Cal_get_calibration_block(...)</code>,依 Calibration Format v4 打包:版本號 → 左/右 gain map(各 221 點)→ DCC Q format → 8×6 DCC map(48 值,各 2 bytes,H/L)→ <code>Checksum %256</code>。</li>
+<li><b>DCC 以 Q format 定點數儲存</b>
+例:Q6 格式下 12.46 DAC/px 存為 <span class="mono">round(12.46 × 64) = 797 = 0x031D</span>。</li>
+<li><b>燒錄後回讀驗證</b>
+比對 buffer 與 checksum;回讀失敗的模組不得流出。</li>
+<li><b>Runtime 使用</b>
+PDLIB 開機讀入 gain map 與 DCC map。對焦時:量得某 ROI 的 disparity(例 −4.0 px)→ 查該 ROI 的 DCC(12.46)→ 鏡頭移動 <span class="mono">−4.0 × 12.46 ≈ −50 DAC</span> → 一步跳到預測合焦位置,再由 Contrast AF 做最後微調。</li>
+</ol>
+
+<div class="note"><b>整條流程回顧:</b>架 chart(25 cm)→ 220→620 DAC 掃 10 點 → 每點抽 PD、補 gain、逐區算 disparity → 48 區各做直線回歸取斜率 = DCC map → 以 focus 曲線峰值驗證(誤差 &lt; 20%)→ 打包燒錄 EEPROM。單顆模組產線節拍(含 10 次移動+拍攝+運算)典型在 2–4 秒內。</div>
+
+<footer>
+依據:Qualcomm《PDAF Module Calibration Guide》80-NV125-1 Rev. L5(2017)。本文之感光元件尺寸、PD pattern、DAC 位置、視差數據均為教學用假設值,實作時以貴模組的 AF 校正結果與 sensor 廠設定檔為準。
+</footer>
+
+</div>
+</body>
+</html>

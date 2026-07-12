@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC_calibration · M0 階段報告 — 規格制定與規劃</title>
+<style>
+  :root{
+    --ink:#10181f; --sub:#3d4a56; --line:#c9d3dc; --line-soft:#e2e8ee;
+    --acc:#0b5cad; --acc-bg:#eef5fc;
+    --ok:#0a6e35; --ok-bg:#ecf7f0;
+    --warn:#8a5a00; --warn-bg:#fdf6e3;
+    --ext:#5a6672; --ext-bg:#f4f6f8;
+    --bad:#a01818; --bad-bg:#fbeeee;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; color:var(--ink); background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei","Segoe UI",sans-serif;
+    font-size:15px; line-height:1.75;
+  }
+  .page{max-width:1020px; margin:0 auto; padding:0 28px 90px;}
+  header.rep{
+    border-bottom:3px solid var(--ink); padding:42px 0 22px; margin-bottom:8px;
+  }
+  header.rep .kicker{font-size:13px; letter-spacing:.18em; color:var(--acc); font-weight:700;}
+  header.rep h1{font-size:30px; margin:6px 0 4px; line-height:1.3;}
+  header.rep .sub{color:var(--sub); font-size:15px;}
+  table.meta{width:100%; border-collapse:collapse; margin:18px 0 0; font-size:13.5px;}
+  table.meta td{border:1px solid var(--line); padding:6px 12px; vertical-align:top;}
+  table.meta td.k{background:var(--ext-bg); font-weight:700; width:112px; white-space:nowrap;}
+
+  nav.toc{
+    background:var(--ext-bg); border:1px solid var(--line); border-radius:8px;
+    padding:14px 22px; margin:26px 0 40px; font-size:14px;
+  }
+  nav.toc b{display:block; margin-bottom:6px; letter-spacing:.08em;}
+  nav.toc ol{margin:0; padding-left:22px; columns:2; column-gap:40px;}
+  nav.toc li{margin:2px 0;}
+  nav.toc a{color:var(--acc); text-decoration:none;}
+  nav.toc a:hover{text-decoration:underline;}
+
+  h2{
+    font-size:21px; margin:56px 0 16px; padding:10px 14px;
+    background:var(--ink); color:#fff; border-radius:6px;
+  }
+  h2 .no{color:#9fc3e8; margin-right:10px; font-family:var(--mono);}
+  h3{font-size:17px; margin:30px 0 10px; padding-left:11px; border-left:4px solid var(--acc);}
+  h4{font-size:15px; margin:22px 0 8px; color:var(--acc);}
+  p{margin:8px 0;}
+  code,.mono{font-family:var(--mono); font-size:.92em; background:var(--ext-bg); padding:1px 5px; border-radius:4px;}
+  strong{color:#000;}
+
+  table.spec{width:100%; border-collapse:collapse; margin:12px 0 18px; font-size:13.5px;}
+  table.spec th{background:var(--ink); color:#fff; text-align:left; padding:7px 10px; font-weight:600;}
+  table.spec td{border:1px solid var(--line); padding:6px 10px; vertical-align:top;}
+  table.spec tr:nth-child(even) td{background:#f8fafc;}
+  table.spec td.c, table.spec th.c{text-align:center;}
+  table.spec td.m{font-family:var(--mono); font-size:12.5px; white-space:nowrap;}
+
+  .tablewrap{overflow-x:auto;}
+  .callout{border-radius:8px; padding:12px 16px; margin:16px 0; border:1px solid;}
+  .callout .t{font-weight:800; display:block; margin-bottom:2px;}
+  .align{background:var(--acc-bg); border-color:#a9c8e6;}
+  .align .t{color:var(--acc);}
+  .warnbox{background:var(--warn-bg); border-color:#e0c689;}
+  .warnbox .t{color:var(--warn);}
+  .okbox{background:var(--ok-bg); border-color:#a9d6ba;}
+  .okbox .t{color:var(--ok);}
+  .badbox{background:var(--bad-bg); border-color:#e0b1b1;}
+  .badbox .t{color:var(--bad);}
+
+  .tag{display:inline-block; font-size:11.5px; font-weight:800; border-radius:4px; padding:1px 8px; vertical-align:1px; letter-spacing:.03em;}
+  .tag.us{background:var(--acc); color:#fff;}
+  .tag.ext{background:var(--ext); color:#fff;}
+  .tag.m2{background:#fff; color:var(--ext); border:1.5px dashed var(--ext);}
+  .tag.closed{background:var(--ok); color:#fff;}
+  .tag.defer{background:var(--warn-bg); color:var(--warn); border:1px solid #d9bd7d;}
+
+  figure{margin:22px 0; text-align:center;}
+  figure svg{max-width:100%; height:auto;}
+  figcaption{font-size:13px; color:var(--sub); margin-top:6px; text-align:center;}
+
+  .eq{
+    background:#f8fafc; border:1px solid var(--line-soft); border-left:4px solid var(--acc);
+    border-radius:6px; padding:10px 18px; margin:10px 0; font-family:var(--mono); font-size:14px;
+    overflow-x:auto; white-space:nowrap;
+  }
+  .eq .no{float:right; color:var(--sub); font-size:12px;}
+  sup,sub{line-height:0;}
+
+  ul.tight{margin:6px 0; padding-left:24px;}
+  ul.tight li{margin:4px 0;}
+  ol.tight{margin:6px 0; padding-left:24px;}
+  ol.tight li{margin:5px 0;}
+
+  .flow{display:flex; flex-wrap:wrap; gap:0; align-items:stretch; margin:16px 0;}
+  .flow .step{
+    flex:1 1 110px; min-width:104px; border:1.6px solid var(--acc); border-radius:8px;
+    background:var(--acc-bg); padding:8px 8px 6px; text-align:center; position:relative; margin-right:26px;
+  }
+  .flow .step:last-child{margin-right:0;}
+  .flow .step::after{
+    content:"▶"; position:absolute; right:-21px; top:50%; transform:translateY(-50%);
+    color:var(--sub); font-size:13px;
+  }
+  .flow .step:last-child::after{content:"";}
+  .flow .step .ph{font-weight:800; font-size:13.5px; color:var(--acc);}
+  .flow .step .nm{font-size:12.5px; line-height:1.45;}
+  .flow .step .er{font-family:var(--mono); font-size:11px; color:var(--bad); margin-top:3px;}
+  .flow .step.ext2{border-style:dashed; border-color:var(--ext); background:var(--ext-bg);}
+  .flow .step.ext2 .ph{color:var(--ext);}
+
+  .checks li{margin:6px 0;}
+  .checks .m{font-family:var(--mono);}
+  footer{margin-top:70px; border-top:2px solid var(--line); padding-top:14px; color:var(--sub); font-size:12.5px;}
+  @media print{
+    .page{max-width:none; padding:0 6mm;}
+    h2{break-after:avoid;} figure,table.spec,.callout{break-inside:avoid;}
+    nav.toc{columns:1;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="rep">
+  <div class="kicker">DCC_CALIBRATION · 階段性報告 · 跨團隊對齊文件</div>
+  <h1>M0 規格制定與開發規劃報告</h1>
+  <div class="sub">PDAF DCC(Defocus Conversion Coefficient)校正工具 — 離線前期架構、介面契約、誤差預算與驗證計畫</div>
+  <table class="meta">
+    <tr>
+      <td class="k">文件版本</td><td>1.0(對應 SPEC 系列 rev 2026-07-11(4))</td>
+      <td class="k">發行日期</td><td>2026-07-11</td>
+    </tr>
+    <tr>
+      <td class="k">狀態</td><td><b>M0 規格底定,待三方 review 簽核後凍結</b></td>
+      <td class="k">依據</td><td>Qualcomm《PDAF Module Calibration Guide》80-NV125-1 Rev. L5</td>
+    </tr>
+    <tr>
+      <td class="k">閱讀對象</td><td colspan="3">校正工程、演算法(含外部 SAD 模組團隊)、設備/擷取團隊、產線整合、runtime(PDLIB 對接)</td>
+    </tr>
+  </table>
+</header>
+
+<nav class="toc">
+  <b>目錄</b>
+  <ol>
+    <li><a href="#s1">執行摘要</a></li>
+    <li><a href="#s2">系統定位與跨團隊職責邊界</a></li>
+    <li><a href="#s3">校正原理與數學模型</a></li>
+    <li><a href="#s4">離線管線工序(Phase A–G)</a></li>
+    <li><a href="#s5">介面契約 ①:disparity/focus 序列</a></li>
+    <li><a href="#s6">介面契約 ②:單位契約與 16 倍陷阱</a></li>
+    <li><a href="#s7">介面契約 ③:粒度聚合規則</a></li>
+    <li><a href="#s8">誤差預算之數學推導</a></li>
+    <li><a href="#s9">參數化設定(config)總覽</a></li>
+    <li><a href="#s10">輸出格式(report / 校正 block)</a></li>
+    <li><a href="#s11">驗證與測試計畫</a></li>
+    <li><a href="#s12">決議紀錄與開放問題處置</a></li>
+    <li><a href="#s13">里程碑與下一步</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="s1"><span class="no">1</span>執行摘要</h2>
+
+<p><b>目標</b>:建立一套 DCC(離焦轉換係數)校正工具,對單顆 PDAF 相機模組,由 10 點鏡頭掃描之逐區相位視差回歸出
+8×6 DCC map,經 focus 交叉驗證後打包為可燒錄之校正 block。</p>
+
+<p><b>本階段最重要的架構決議(2026-07-11)</b>:前期為<strong>離線工具</strong>。
+實機擷取、PD 像素處理與 SAD disparity 計算、EEPROM 實體燒錄,全部由外部模組承擔;
+本工具消費外部產出的「逐區 disparity/focus 序列」,專注於<b>回歸、驗證、打包、報告</b>,
+所有硬體與演算法介面保留,待 M2 對接。</p>
+
+<div class="callout align"><span class="t">跨團隊認知對齊 — 一句話版本</span>
+外部團隊交付 <code>disp_seq.json</code>(格式見 §5,精度要求見 §8),本工具產出
+<code>report.json / report.md / block.bin</code>;兩者之間的一切數值以 <b>raw_pixel</b> 為 disparity 單位、
+<b>DAC/raw_pixel</b> 為 DCC 單位,任何偏離都會造成 16 倍等級的對焦錯誤。</div>
+
+<h3>現況一覽</h3>
+<table class="spec">
+  <tr><th style="width:30%">項目</th><th>狀態</th></tr>
+  <tr><td>SPEC-000〜005 規格系列</td><td>內容底定(rev 2026-07-11(4)),矛盾點勘誤完畢,待三方簽核凍結</td></tr>
+  <tr><td>開放問題(SPEC-005 §7)</td><td>#5 已關閉;#1/#2/#4 明確延期至 M2 前;#3 轉 M1 分析任務 → <b>不阻擋 M1 開發</b></td></tr>
+  <tr><td>跨團隊介面</td><td><code>disp_seq.json</code> v1 已定義,<b>待與外部 SAD 模組負責方對齊確認</b>(目前唯一跨團隊依賴)</td></tr>
+  <tr><td>下一步</td><td>三方 review 簽核 → 宣告凍結 → 進入 M1(先寫測試 UT-01..10,再實作)</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s2"><span class="no">2</span>系統定位與跨團隊職責邊界</h2>
+
+<p>下圖定義各團隊的責任範圍與資料流。<span class="tag us">本工具</span> 表示 DCC_calibration 範圍;
+<span class="tag ext">外部</span> 表示外部團隊/模組;<span class="tag m2">M2</span> 表示前期僅保留介面、M2 才實作對接。</p>
+
+<figure>
+<svg viewBox="0 0 1000 430" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC','Noto Sans TC',sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3d4a56"/>
+    </marker>
+    <marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0b5cad"/>
+    </marker>
+  </defs>
+
+  <!-- external zone -->
+  <rect x="12" y="14" width="284" height="330" rx="10" fill="#f4f6f8" stroke="#5a6672" stroke-width="1.4" stroke-dasharray="7 5"/>
+  <text x="28" y="40" font-size="14" font-weight="800" fill="#5a6672">外部模組(非本工具範圍)</text>
+
+  <rect x="36" y="58" width="236" height="72" rx="8" fill="#fff" stroke="#5a6672" stroke-width="1.4"/>
+  <text x="154" y="84" font-size="13.5" font-weight="700" text-anchor="middle" fill="#10181f">實機擷取模組(治具/設備)</text>
+  <text x="154" y="104" font-size="11.5" text-anchor="middle" fill="#3d4a56">場景確認 · VCM 驅動 · RAW 擷取</text>
+  <text x="154" y="120" font-size="11.5" text-anchor="middle" fill="#3d4a56">曝光/black level/飽和檢查</text>
+
+  <rect x="36" y="176" width="236" height="86" rx="8" fill="#fff" stroke="#5a6672" stroke-width="1.4"/>
+  <text x="154" y="200" font-size="13.5" font-weight="700" text-anchor="middle" fill="#10181f">SAD disparity 模組</text>
+  <text x="154" y="219" font-size="11.5" text-anchor="middle" fill="#3d4a56">PD 抽取 · gain 套用 · SAD+次像素</text>
+  <text x="154" y="235" font-size="11.5" text-anchor="middle" fill="#3d4a56">品質判定 · focus value 計算</text>
+  <text x="154" y="253" font-size="11" text-anchor="middle" fill="#a01818" font-weight="700">精度須符合 §8 誤差預算</text>
+
+  <line x1="154" y1="130" x2="154" y2="176" stroke="#3d4a56" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="162" y="158" font-size="11" fill="#3d4a56">RAW ×10</text>
+
+  <!-- our tool zone -->
+  <rect x="340" y="14" width="378" height="404" rx="10" fill="#eef5fc" stroke="#0b5cad" stroke-width="2"/>
+  <text x="356" y="40" font-size="14" font-weight="800" fill="#0b5cad">DCC_calibration(本工具 · 離線)</text>
+
+  <rect x="360" y="56" width="160" height="52" rx="7" fill="#fff" stroke="#0b5cad" stroke-width="1.4"/>
+  <text x="440" y="78" font-size="12.5" font-weight="700" text-anchor="middle">A 前置驗證</text>
+  <text x="440" y="96" font-size="11" text-anchor="middle" fill="#3d4a56">config / AF 值 / gain map</text>
+
+  <rect x="538" y="56" width="160" height="52" rx="7" fill="#fff" stroke="#0b5cad" stroke-width="1.4"/>
+  <text x="618" y="78" font-size="12.5" font-weight="700" text-anchor="middle">C-1 掃描規劃</text>
+  <text x="618" y="96" font-size="11" text-anchor="middle" fill="#3d4a56">FAR/NEAR/step 公式推導</text>
+
+  <rect x="360" y="132" width="338" height="60" rx="7" fill="#fff" stroke="#0b5cad" stroke-width="1.4"/>
+  <text x="529" y="154" font-size="12.5" font-weight="700" text-anchor="middle">D 序列載入與驗證</text>
+  <text x="529" y="172" font-size="11" text-anchor="middle" fill="#3d4a56">形狀/DAC/單位驗證 · 單位轉換 · 粒度聚合 · 無效樣本</text>
+
+  <rect x="360" y="212" width="160" height="52" rx="7" fill="#fff" stroke="#0b5cad" stroke-width="1.4"/>
+  <text x="440" y="234" font-size="12.5" font-weight="700" text-anchor="middle">E 逐區回歸</text>
+  <text x="440" y="252" font-size="11" text-anchor="middle" fill="#3d4a56">OLS:DAC = k·disp + b</text>
+
+  <rect x="538" y="212" width="160" height="52" rx="7" fill="#fff" stroke="#0b5cad" stroke-width="1.4"/>
+  <text x="618" y="234" font-size="12.5" font-weight="700" text-anchor="middle">F 交叉驗證</text>
+  <text x="618" y="252" font-size="11" text-anchor="middle" fill="#3d4a56">focus 峰值 vs 截距</text>
+
+  <rect x="360" y="288" width="338" height="52" rx="7" fill="#fff" stroke="#0b5cad" stroke-width="1.4"/>
+  <text x="529" y="310" font-size="12.5" font-weight="700" text-anchor="middle">G 打包與報告</text>
+  <text x="529" y="328" font-size="11" text-anchor="middle" fill="#3d4a56">Q6 編碼 · checksum · block.bin · report.json/md</text>
+
+  <rect x="360" y="360" width="338" height="42" rx="7" fill="#fff" stroke="#0b5cad" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="529" y="379" font-size="12" font-weight="700" text-anchor="middle" fill="#0b5cad">互動式 UI(tools 層)</text>
+  <text x="529" y="395" font-size="10.5" text-anchor="middle" fill="#3d4a56">RAW 唯讀載入作影像底圖(不入計算路徑)</text>
+
+  <!-- inner arrows -->
+  <line x1="520" y1="82" x2="538" y2="82" stroke="#0b5cad" stroke-width="1.6" marker-end="url(#arb)"/>
+  <line x1="618" y1="108" x2="618" y2="132" stroke="#0b5cad" stroke-width="1.6" marker-end="url(#arb)"/>
+  <line x1="440" y1="192" x2="440" y2="212" stroke="#0b5cad" stroke-width="1.6" marker-end="url(#arb)"/>
+  <line x1="520" y1="238" x2="538" y2="238" stroke="#0b5cad" stroke-width="1.6" marker-end="url(#arb)"/>
+  <line x1="618" y1="264" x2="618" y2="288" stroke="#0b5cad" stroke-width="1.6" marker-end="url(#arb)"/>
+
+  <!-- disp_seq arrow -->
+  <line x1="272" y1="219" x2="360" y2="162" stroke="#3d4a56" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="252" y="152" width="126" height="22" rx="4" fill="#fdf6e3" stroke="#d9bd7d"/>
+  <text x="315" y="167" font-size="11.5" text-anchor="middle" font-weight="700" fill="#8a5a00">disp_seq.json(§5)</text>
+
+  <!-- RAW readonly arrow -->
+  <path d="M154,262 L154,381 L360,381" fill="none" stroke="#5a6672" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+  <text x="196" y="374" font-size="10.5" fill="#5a6672">RAW(唯讀,選配)</text>
+
+  <!-- outputs / downstream -->
+  <rect x="762" y="56" width="222" height="88" rx="8" fill="#fff" stroke="#0b5cad" stroke-width="1.6"/>
+  <text x="873" y="80" font-size="13" font-weight="700" text-anchor="middle">產出</text>
+  <text x="873" y="100" font-size="11.5" text-anchor="middle" fill="#3d4a56">report.json / report.md</text>
+  <text x="873" y="118" font-size="11.5" text-anchor="middle" fill="#3d4a56">block.bin(993 bytes)</text>
+  <text x="873" y="136" font-size="11" text-anchor="middle" fill="#0a6e35">PASS / FAIL + 錯誤碼</text>
+
+  <rect x="762" y="196" width="222" height="64" rx="8" fill="#fff" stroke="#5a6672" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="873" y="220" font-size="12.5" font-weight="700" text-anchor="middle" fill="#5a6672">EEPROM 實體燒錄 [M2]</text>
+  <text x="873" y="240" font-size="11" text-anchor="middle" fill="#5a6672">NvmIF 介面已定義,前期 SimNvm</text>
+
+  <rect x="762" y="300" width="222" height="76" rx="8" fill="#fff" stroke="#5a6672" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="873" y="324" font-size="12.5" font-weight="700" text-anchor="middle" fill="#5a6672">Runtime PDLIB(消費端)</text>
+  <text x="873" y="343" font-size="11" text-anchor="middle" fill="#5a6672">gain 補償 → disparity → 查 DCC</text>
+  <text x="873" y="360" font-size="11" text-anchor="middle" fill="#5a6672">→ 一步跳焦(+ Contrast AF 微調)</text>
+
+  <line x1="718" y1="100" x2="762" y2="100" stroke="#3d4a56" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="873" y1="144" x2="873" y2="196" stroke="#5a6672" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+  <line x1="873" y1="260" x2="873" y2="300" stroke="#5a6672" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+</svg>
+<figcaption>圖 2-1 · 系統邊界與資料流:實線=前期即運作;虛線=M2 對接。本工具(藍框)為純離線資料處理。</figcaption>
+</figure>
+
+<h3>職責分工表</h3>
+<table class="spec">
+  <tr><th style="width:22%">職責</th><th style="width:14%" class="c">歸屬</th><th>本工具的介入方式</th></tr>
+  <tr><td>場景確認、VCM 驅動、RAW 擷取、曝光/black level/飽和檢查</td><td class="c"><span class="tag ext">外部</span></td><td>提供 C-1 掃描規劃(DAC 序列)作為擷取依據;HAL 介面(MotorIF/CaptureIF)保留,前期以 Sim* 代</td></tr>
+  <tr><td>PD 抽取、gain 套用、SAD、次像素、品質判定、focus value</td><td class="c"><span class="tag ext">外部</span></td><td>制定 <code>disp_seq.json</code> 讀取與驗證機制(§5),並以誤差預算(§8)作為介面驗收條件</td></tr>
+  <tr><td>掃描規劃、序列驗證、回歸、交叉驗證、打包、報告、UI</td><td class="c"><span class="tag us">本工具</span></td><td>核心範圍;core 層純 NumPy、可離線重算</td></tr>
+  <tr><td>EEPROM 實體燒錄</td><td class="c"><span class="tag m2">M2</span></td><td>前期輸出 <code>block.bin</code> + SimNvm 回讀驗證;NvmIF 介面已定義</td></tr>
+  <tr><td>Runtime 對焦(PDLIB)</td><td class="c"><span class="tag ext">外部</span></td><td>不實作;僅保證單位/Q format/佈局相容(§6、§10)</td></tr>
+</table>
+
+<div class="callout warnbox"><span class="t">認知對齊 ①:SAD 演算法「同源」原則</span>
+校正端(外部 SAD 模組)與 runtime 端(PDLIB)計算 disparity 的邏輯必須是同一套
+(同座標系、同單位、同次像素方法)。校正出的 DCC 是「這套演算法」的轉換係數,換演算法 = 需重新校正。</div>
+
+<!-- ============================================================ -->
+<h2 id="s3"><span class="no">3</span>校正原理與數學模型</h2>
+
+<h3>3.1 物理模型</h3>
+<p>PDAF 的左/右(L/R)相位像素觀察同一景物,離焦時產生水平視差(disparity)。
+在合焦點附近,視差與鏡頭位置(VCM DAC 碼)呈線性關係。DCC 即此線性關係的斜率:</p>
+
+<div class="eq"><span class="no">(3-1)</span>DAC = k · disp + b,   DCC ≡ k = ΔDAC / Δdisparity   [DAC / raw_pixel],恆正</div>
+
+<p>其中截距 <b>b</b> 有明確物理意義:disparity = 0 時的鏡頭位置,即<b>合焦點</b>。
+因此可用另一條獨立途徑——focus 曲線(對比度/梯度能量)的峰值位置——來交叉驗證回歸結果:</p>
+
+<div class="eq"><span class="no">(3-2)</span>err = | b − focus_peak | / (NEAR − FAR),   err &lt; tolerance(metal-shield 預設 0.20)→ PASS</div>
+
+<figure>
+<svg viewBox="0 0 940 400" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC','Noto Sans TC',sans-serif">
+  <defs>
+    <marker id="ax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#10181f"/>
+    </marker>
+  </defs>
+  <!-- ===== Panel 1: regression ===== -->
+  <text x="240" y="26" font-size="14" font-weight="800" text-anchor="middle" fill="#0b5cad">回歸:DAC = k·disp + b(每區獨立)</text>
+  <!-- axes -->
+  <line x1="60" y1="330" x2="440" y2="330" stroke="#10181f" stroke-width="1.6" marker-end="url(#ax)"/>
+  <line x1="230" y1="345" x2="230" y2="50" stroke="#c9d3dc" stroke-width="1.2"/>
+  <line x1="60" y1="330" x2="60" y2="50" stroke="#10181f" stroke-width="1.6" marker-end="url(#ax)"/>
+  <text x="250" y="370" font-size="12" text-anchor="middle">disparity [raw px]</text>
+  <text x="52" y="44" font-size="12" text-anchor="end">DAC</text>
+  <!-- x ticks -->
+  <text x="70" y="348" font-size="11" text-anchor="middle" fill="#3d4a56">−20</text>
+  <text x="230" y="348" font-size="11" text-anchor="middle" fill="#3d4a56">0</text>
+  <text x="390" y="348" font-size="11" text-anchor="middle" fill="#3d4a56">+20</text>
+  <!-- fit line -->
+  <line x1="76" y1="310" x2="384" y2="70" stroke="#0b5cad" stroke-width="2.2"/>
+  <!-- points: (x,y) computed for defaults -->
+  <g fill="#fff" stroke="#0b5cad" stroke-width="2">
+    <circle cx="75.9" cy="310" r="4.4"/><circle cx="109.9" cy="283.5" r="4.4"/>
+    <circle cx="144.6" cy="256.5" r="4.4"/><circle cx="178.6" cy="230" r="4.4"/>
+    <circle cx="212.6" cy="203.5" r="4.4"/><circle cx="247.4" cy="176.5" r="4.4"/>
+    <circle cx="281.4" cy="150" r="4.4"/><circle cx="315.4" cy="123.5" r="4.4"/>
+    <circle cx="350.1" cy="96.5" r="4.4"/><circle cx="384.1" cy="70" r="4.4"/>
+  </g>
+  <!-- intercept -->
+  <circle cx="230" cy="190" r="5.5" fill="#a01818"/>
+  <line x1="60" y1="190" x2="230" y2="190" stroke="#a01818" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="240" y="186" font-size="12.5" fill="#a01818" font-weight="700">b = 截距(合焦點,示例 420)</text>
+  <!-- slope label -->
+  <text x="300" y="216" font-size="12.5" fill="#0b5cad" font-weight="700">斜率 k = DCC</text>
+  <text x="300" y="233" font-size="11.5" fill="#3d4a56">(示例 12.46 DAC/px)</text>
+  <text x="88" y="300" font-size="11" fill="#3d4a56">10 個掃描點</text>
+  <text x="88" y="315" font-size="11" fill="#3d4a56">(FAR→NEAR)</text>
+
+  <!-- ===== Panel 2: focus curve ===== -->
+  <text x="710" y="26" font-size="14" font-weight="800" text-anchor="middle" fill="#0a6e35">交叉驗證:focus 曲線峰值(獨立量測)</text>
+  <line x1="520" y1="330" x2="910" y2="330" stroke="#10181f" stroke-width="1.6" marker-end="url(#ax)"/>
+  <line x1="520" y1="330" x2="520" y2="50" stroke="#10181f" stroke-width="1.6" marker-end="url(#ax)"/>
+  <text x="932" y="320" font-size="12" text-anchor="end">DAC</text>
+  <text x="512" y="44" font-size="12" text-anchor="end">focus value</text>
+  <!-- E-F01 boundary shading: FAR..FAR+step and NEAR-step..NEAR ; x2(dac)=524+(dac-180)*0.72 -->
+  <rect x="524" y="52" width="38.2" height="278" fill="#fbeeee"/>
+  <rect x="831.4" y="52" width="38.2" height="278" fill="#fbeeee"/>
+  <text x="543" y="66" font-size="10" text-anchor="middle" fill="#a01818">E-F01</text>
+  <text x="850" y="66" font-size="10" text-anchor="middle" fill="#a01818">E-F01</text>
+  <!-- x ticks: 180,420,660 -->
+  <line x1="524" y1="330" x2="524" y2="336" stroke="#10181f"/>
+  <line x1="696.8" y1="330" x2="696.8" y2="336" stroke="#10181f"/>
+  <line x1="869.6" y1="330" x2="869.6" y2="336" stroke="#10181f"/>
+  <text x="524" y="350" font-size="11" text-anchor="middle" fill="#3d4a56">FAR 180</text>
+  <text x="696.8" y="350" font-size="11" text-anchor="middle" fill="#3d4a56">420</text>
+  <text x="869.6" y="350" font-size="11" text-anchor="middle" fill="#3d4a56">NEAR 660</text>
+  <!-- focus curve: peak at 420 (x=696.8, y=80), ends y=300 : quadratic bezier approx -->
+  <path d="M524,300 Q610,64 696.8,80 Q783,64 869.6,300" fill="none" stroke="#0a6e35" stroke-width="2.4"/>
+  <!-- sample dots along curve -->
+  <g fill="#fff" stroke="#0a6e35" stroke-width="2">
+    <circle cx="524" cy="300" r="4"/><circle cx="562.2" cy="238" r="4"/><circle cx="601" cy="164" r="4"/>
+    <circle cx="639.2" cy="110" r="4"/><circle cx="677.4" cy="84" r="4"/><circle cx="715.7" cy="82" r="4"/>
+    <circle cx="753.9" cy="107" r="4"/><circle cx="792.1" cy="161" r="4"/><circle cx="830.3" cy="236" r="4"/>
+    <circle cx="869.6" cy="300" r="4"/>
+  </g>
+  <!-- peak marker -->
+  <line x1="696.8" y1="330" x2="696.8" y2="76" stroke="#a01818" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <circle cx="696.8" cy="78" r="5.5" fill="#a01818"/>
+  <text x="706" y="98" font-size="12.5" fill="#a01818" font-weight="700">focus_peak(4 階多項式擬合)</text>
+  <text x="706" y="116" font-size="11.5" fill="#3d4a56">峰值落入紅區(端點 ±1 step)→ E-F01</text>
+  <!-- cross-check annotation -->
+  <text x="470" y="386" font-size="13" font-weight="700" fill="#10181f" text-anchor="middle">判定:err = |b − focus_peak| / (NEAR−FAR) &lt; tolerance(0.20)→ 該區 PASS;48 區全 PASS → 模組 PASS</text>
+</svg>
+<figcaption>圖 3-1 · 兩條獨立途徑互相驗證:左=視差回歸(得 DCC 與截距 b),右=focus 曲線峰值。座標數值為預設 config(margin 0.1)之推導示例。</figcaption>
+</figure>
+
+<div class="callout align"><span class="t">認知對齊 ②:三個不變的方向約定</span>
+<ul class="tight">
+<li><b>掃描方向</b>:FAR→NEAR 單向,禁止反轉(VCM 磁滯對策)。序列檔的 <code>dacs</code> 必須嚴格遞增。</li>
+<li><b>disparity 正負</b>:R 影像相對 L 影像右移為正。</li>
+<li><b>DCC 恆正</b>:回歸斜率 k ≤ 0 即報 E-E01(最常見根因:L/R 定義顛倒)。</li>
+</ul></div>
+
+<!-- ============================================================ -->
+<h2 id="s4"><span class="no">4</span>離線管線工序(Phase A–G)</h2>
+
+<div class="flow">
+  <div class="step"><div class="ph">A</div><div class="nm">前置驗證<br>config/AF/gain</div><div class="er">E-A0x</div></div>
+  <div class="step"><div class="ph">C-1</div><div class="nm">掃描規劃<br>公式推導 DAC 序列</div><div class="er">E-C01</div></div>
+  <div class="step"><div class="ph">D</div><div class="nm">序列載入驗證<br>單位轉換/聚合</div><div class="er">E-D01/02/03</div></div>
+  <div class="step"><div class="ph">E</div><div class="nm">逐區回歸<br>48 區 OLS</div><div class="er">E-E01</div></div>
+  <div class="step"><div class="ph">F</div><div class="nm">交叉驗證<br>峰值 vs 截距</div><div class="er">E-F01/02</div></div>
+  <div class="step"><div class="ph">G</div><div class="nm">打包+報告<br>Q6/checksum</div><div class="er">E-G01</div></div>
+</div>
+<div class="flow">
+  <div class="step ext2"><div class="ph">B</div><div class="nm">場景確認 <span class="tag m2">M2/外部</span></div></div>
+  <div class="step ext2"><div class="ph">C-2</div><div class="nm">實機擷取迴圈 <span class="tag m2">M2/外部</span></div></div>
+</div>
+
+<h3>Phase D 細部工序(本工具的入料守門)</h3>
+<table class="spec">
+  <tr><th style="width:9%" class="c">步驟</th><th style="width:26%">內容</th><th>驗證/失敗處置</th></tr>
+  <tr><td class="c m">D-1</td><td>形狀驗證</td><td>N == num_positions;data/focus/quality 形狀 == [N][grid_h][grid_w] 一致 → 否則 <b>E-D01</b></td></tr>
+  <tr><td class="c m">D-2</td><td>DAC 對應</td><td>嚴格遞增(FAR→NEAR)且與 C-1 規劃逐點一致(容差 ±1 DAC)→ 否則 <b>E-D02</b></td></tr>
+  <tr><td class="c m">D-3</td><td>單位轉換</td><td>unit/pitch_x 與 config 一致;pd_image_grid → ×pitch_x 轉 raw_pixel(<b>全案僅此一處入向轉換</b>)</td></tr>
+  <tr><td class="c m">D-4</td><td>無效樣本標記</td><td>null → NaN(cell 級)</td></tr>
+  <tr><td class="c m">D-5</td><td>粒度聚合</td><td>序列 grid ≠ 8×6 時依 §7 規則聚合(median / quality 加權平均)</td></tr>
+  <tr><td class="c m">D-6</td><td>有效樣本統計</td><td>逐區跨幀有效樣本 &lt; min_valid_samples(預設 8)→ <b>E-D03</b></td></tr>
+</table>
+
+<div class="callout okbox"><span class="t">失敗處置原則(全 Phase 一致)</span>
+任何中止都先落盤現場資料(序列快照、DispGrid、參數快照)再拋具名錯誤碼,保證可離線重算(bit-exact,IT-06)。
+錯誤碼表為滾動式清單,開發初期允許 Phase 通用碼,M1 出口前收斂為具名碼。</div>
+
+<!-- ============================================================ -->
+<h2 id="s5"><span class="no">5</span>介面契約 ①:disparity/focus 序列(disp_seq.json)</h2>
+
+<p>這是<b>外部 SAD 模組 → 本工具</b>的唯一量測資料介面,也是目前唯一待跨團隊確認的依賴。
+每模組一份 <code>data/disparity/&lt;module_id&gt;/disp_seq.json</code>(UTF-8):</p>
+
+<div class="tablewrap">
+<table class="spec">
+  <tr><th style="width:15%">欄位</th><th style="width:22%">型別</th><th class="c" style="width:8%">必填</th><th>約束</th></tr>
+  <tr><td class="m">module_id</td><td>str</td><td class="c">✔</td><td>與資料夾名一致</td></tr>
+  <tr><td class="m">unit</td><td>"raw_pixel" | "pd_image_grid"</td><td class="c">✔</td><td>須等於 config <code>input_disparity_unit</code></td></tr>
+  <tr><td class="m">pitch_x</td><td>int</td><td class="c">✔</td><td>須等於 config 推得之 pitch_x(範例 16;單位驗算用)</td></tr>
+  <tr><td class="m">dacs</td><td>[int × N]</td><td class="c">✔</td><td>N == num_positions(v1: 10);<b>嚴格遞增(FAR→NEAR)</b>;與 C-1 規劃逐點一致 ±1 DAC</td></tr>
+  <tr><td class="m">grid_w / grid_h</td><td>int</td><td class="c">✔</td><td>外部 SAD 之輸出粒度,<b>可 ≠ 8×6</b>(如 pattern block 級 144×108);不一致時本工具依 §7 聚合</td></tr>
+  <tr><td class="m">data</td><td>[N][grid_h][grid_w] float | null</td><td class="c">✔</td><td>disparity;<b>無效樣本以 null</b>(品質門檻判定在外部完成)</td></tr>
+  <tr><td class="m">focus</td><td>[N][grid_h][grid_w] float</td><td class="c">✔</td><td>逐 cell focus value(梯度能量等)。Phase F 只用「峰值位置」,量綱不拘但同序列內須一致</td></tr>
+  <tr><td class="m">quality</td><td>同 data 形狀</td><td class="c">選填</td><td>品質指標;weighted_mean 聚合時作權重(缺則等權)</td></tr>
+  <tr><td class="m">meta</td><td>dict</td><td class="c">選填</td><td>曝光、溫度、治具 ID 等追溯資訊</td></tr>
+</table>
+</div>
+
+<div class="callout warnbox"><span class="t">認知對齊 ③:focus value 必填的原因</span>
+交叉驗證(Phase F)需要每張、每區的 focus value 來擬合峰值。像素處理已外部化,
+本工具無法自行計算——<b>外部模組必須隨 disparity 一併輸出 focus 序列</b>,否則整個 PASS/FAIL 判定無法執行。</div>
+
+<div class="callout align"><span class="t">給外部 SAD 模組團隊的三件事</span>
+<ol class="tight">
+<li><b>格式</b>:照上表輸出 <code>disp_seq.json</code>(自述式,含單位與粒度欄位)。</li>
+<li><b>精度</b>:單點 disparity |系統偏差| ≤ 0.3 raw px、隨機 σ ≤ 0.5 raw px(推導見 §8;此為介面驗收條件)。</li>
+<li><b>品質責任切分</b>:SAD 品質門檻(曲線深度/對比等)由外部判定,不合格 cell 直接填 null;本工具只統計有效樣本數並聚合。</li>
+</ol></div>
+
+<!-- ============================================================ -->
+<h2 id="s6"><span class="no">6</span>介面契約 ②:單位契約與 16 倍陷阱</h2>
+
+<p>本專案風險最高的認知差異點。PD 影像(288×432)的座標系中「1 格」= 原始 sensor 的
+<b>pitch_x = 16 個 raw pixel</b>。同一個物理視差,兩種座標系的數值差 16 倍,DCC 隨之差 16 倍——
+單位搞錯,runtime 一步跳焦會過衝或幾乎不動 16 倍。</p>
+
+<figure>
+<svg viewBox="0 0 1000 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC','Noto Sans TC',sans-serif">
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3d4a56"/>
+    </marker>
+  </defs>
+  <!-- input zone -->
+  <rect x="14" y="60" width="212" height="150" rx="10" fill="#f4f6f8" stroke="#5a6672" stroke-width="1.4" stroke-dasharray="7 5"/>
+  <text x="120" y="88" font-size="13.5" font-weight="800" text-anchor="middle" fill="#5a6672">輸入:disp_seq.json</text>
+  <text x="120" y="116" font-size="12" text-anchor="middle">unit 二擇一:</text>
+  <rect x="38" y="128" width="164" height="26" rx="5" fill="#fff" stroke="#0b5cad"/>
+  <text x="120" y="146" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">raw_pixel</text>
+  <rect x="38" y="162" width="164" height="26" rx="5" fill="#fff" stroke="#8a5a00"/>
+  <text x="120" y="180" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" fill="#8a5a00">pd_image_grid</text>
+
+  <!-- reader -->
+  <rect x="272" y="84" width="176" height="104" rx="10" fill="#fdf6e3" stroke="#d9bd7d" stroke-width="1.6"/>
+  <text x="360" y="112" font-size="13" font-weight="800" text-anchor="middle" fill="#8a5a00">讀取端(轉換點 1)</text>
+  <text x="360" y="133" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">io.disparity_reader</text>
+  <text x="360" y="156" font-size="12.5" text-anchor="middle">pd_image_grid → <tspan font-weight="800">× pitch_x</tspan></text>
+  <text x="360" y="176" font-size="11.5" text-anchor="middle" fill="#3d4a56">依 input_disparity_unit</text>
+
+  <!-- core zone -->
+  <rect x="494" y="48" width="252" height="176" rx="10" fill="#eef5fc" stroke="#0b5cad" stroke-width="2.2"/>
+  <text x="620" y="78" font-size="14" font-weight="800" text-anchor="middle" fill="#0b5cad">core(單一單位區)</text>
+  <text x="620" y="106" font-size="13" text-anchor="middle">disparity 一律 <tspan font-weight="800">raw_pixel</tspan></text>
+  <text x="620" y="130" font-size="13" text-anchor="middle">DCC 一律 <tspan font-weight="800">DAC / raw_pixel</tspan></text>
+  <line x1="516" y1="146" x2="724" y2="146" stroke="#a9c8e6"/>
+  <text x="620" y="170" font-size="11.5" text-anchor="middle" fill="#3d4a56">禁止出現第二種單位</text>
+  <text x="620" y="190" font-size="11.5" text-anchor="middle" fill="#3d4a56">跨模組函式 docstring 首行必標單位</text>
+  <text x="620" y="210" font-size="11.5" text-anchor="middle" fill="#3d4a56">(review 檢查項)</text>
+
+  <!-- packer -->
+  <rect x="792" y="84" width="192" height="104" rx="10" fill="#fdf6e3" stroke="#d9bd7d" stroke-width="1.6"/>
+  <text x="888" y="112" font-size="13" font-weight="800" text-anchor="middle" fill="#8a5a00">打包端(轉換點 2)</text>
+  <text x="888" y="133" font-size="12" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">io.eeprom</text>
+  <text x="888" y="156" font-size="12.5" text-anchor="middle">依 output_disparity_unit</text>
+  <text x="888" y="176" font-size="12.5" text-anchor="middle">(PDLIB 期望)決定 <tspan font-weight="800">÷ pitch_x</tspan></text>
+
+  <line x1="226" y1="136" x2="272" y2="136" stroke="#3d4a56" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="448" y1="136" x2="494" y2="136" stroke="#3d4a56" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="746" y1="136" x2="792" y2="136" stroke="#3d4a56" stroke-width="2" marker-end="url(#ar2)"/>
+
+  <text x="500" y="262" font-size="13.5" text-anchor="middle" font-weight="800" fill="#a01818">單位轉換全案僅允許此兩處(黃框);其餘任何地方乘/除 pitch_x = bug</text>
+  <text x="500" y="286" font-size="12.5" text-anchor="middle" fill="#10181f">自動檢核:report 內建 dcc_ratio_check = dcc_pd_grid / dcc_raw_px,恆等於 pitch_x(16);≈1 = 漏乘、≈256 = 重複乘 → 示警</text>
+</svg>
+<figcaption>圖 6-1 · 單位契約:core 為單一單位區,轉換只發生在讀取端與打包端。</figcaption>
+</figure>
+
+<h3>數值對照(以中央區示例)</h3>
+<table class="spec">
+  <tr><th>量</th><th class="c">raw_pixel 座標系</th><th class="c">pd_image_grid 座標系</th><th>關係</th></tr>
+  <tr><td>同一物理視差</td><td class="c m">16.0 px</td><td class="c m">1.0 格</td><td class="m">×16</td></tr>
+  <tr><td>DCC(中央)</td><td class="c m">12.46 DAC/px</td><td class="c m">199.36 DAC/格</td><td class="m">×16</td></tr>
+  <tr><td>Q6 編碼</td><td class="c m">797 = 0x031D</td><td class="c m">12759 = 0x31D7</td><td>皆在 uint16 範圍內</td></tr>
+</table>
+
+<div class="callout warnbox"><span class="t">認知對齊 ④:runtime PDLIB 的單位仍待確認(開放問題 #2,延期至 M2 燒錄前)</span>
+設計已對沖:core 永遠 raw_pixel、打包端兩條路徑都實作並測試(UT-09)、report 同時記錄兩種單位的 DCC。
+PDLIB 單位確認後<b>只翻一個 config 值</b>(<code>output_disparity_unit</code>),不改程式。</div>
+
+<!-- ============================================================ -->
+<h2 id="s7"><span class="no">7</span>介面契約 ③:粒度聚合規則(Phase D-5)</h2>
+
+<p>外部 SAD 模組的輸出粒度不必等於 DCC 的 8×6 分區(例如以 32×32 pattern block 為單位輸出 144×108 個 cell)。
+本工具在 Phase D-5 依 config 聚合:</p>
+
+<figure>
+<svg viewBox="0 0 960 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC','Noto Sans TC',sans-serif">
+  <defs>
+    <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3d4a56"/>
+    </marker>
+  </defs>
+  <!-- fine grid: 24x16 cells, 14px each => 336x224 at (40,40) -->
+  <g stroke="#c9d3dc" stroke-width="0.7">
+    <rect x="40" y="40" width="336" height="224" fill="#fff"/>
+  </g>
+  <g stroke="#dde5ec" stroke-width="0.6">
+    <!-- vertical lines every 14 -->
+    <path d="M54,40V264 M68,40V264 M82,40V264 M96,40V264 M110,40V264 M124,40V264 M138,40V264 M152,40V264 M166,40V264 M180,40V264 M194,40V264 M208,40V264 M222,40V264 M236,40V264 M250,40V264 M264,40V264 M278,40V264 M292,40V264 M306,40V264 M320,40V264 M334,40V264 M348,40V264 M362,40V264"/>
+    <path d="M40,54H376 M40,68H376 M40,82H376 M40,96H376 M40,110H376 M40,124H376 M40,138H376 M40,152H376 M40,166H376 M40,180H376 M40,194H376 M40,208H376 M40,222H376 M40,236H376 M40,250H376"/>
+  </g>
+  <!-- 8x6 region overlay: region = 42x37.33 -->
+  <g stroke="#0b5cad" stroke-width="1.8" fill="none">
+    <rect x="40" y="40" width="336" height="224"/>
+    <path d="M82,40V264 M124,40V264 M166,40V264 M208,40V264 M250,40V264 M292,40V264 M334,40V264"/>
+    <path d="M40,77.3H376 M40,114.7H376 M40,152H376 M40,189.3H376 M40,226.7H376"/>
+  </g>
+  <!-- highlight one region -->
+  <rect x="166" y="114.7" width="42" height="37.3" fill="#0b5cad" fill-opacity="0.18"/>
+  <!-- some null cells -->
+  <g fill="#fbeeee" stroke="#e0b1b1" stroke-width="0.6">
+    <rect x="292" y="222" width="14" height="14"/><rect x="306" y="236" width="14" height="14"/>
+    <rect x="54" y="54" width="14" height="14"/>
+  </g>
+  <text x="208" y="26" font-size="13" font-weight="800" text-anchor="middle" fill="#10181f">外部 SAD 輸出(細粒度,示意)</text>
+  <text x="208" y="284" font-size="11.5" text-anchor="middle" fill="#3d4a56">灰細格 = SAD cell;藍粗格 = 8×6 region;紅格 = null(無效)</text>
+
+  <!-- arrow + rule box -->
+  <line x1="392" y1="152" x2="556" y2="152" stroke="#3d4a56" stroke-width="2.4" marker-end="url(#ar3)"/>
+  <rect x="400" y="80" width="146" height="58" rx="7" fill="#fdf6e3" stroke="#d9bd7d"/>
+  <text x="473" y="102" font-size="12" font-weight="800" text-anchor="middle" fill="#8a5a00">D-5 聚合</text>
+  <text x="473" y="119" font-size="10.5" text-anchor="middle">cell 中心座標歸區</text>
+  <text x="473" y="133" font-size="10.5" text-anchor="middle">(邊界歸左/上)</text>
+  <rect x="400" y="168" width="146" height="76" rx="7" fill="#fff" stroke="#c9d3dc"/>
+  <text x="473" y="188" font-size="11" text-anchor="middle" font-weight="700">方法(config 二選一)</text>
+  <text x="473" y="206" font-size="10.5" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">median(預設)</text>
+  <text x="473" y="222" font-size="10.5" text-anchor="middle" font-family="ui-monospace,Menlo,monospace">weighted_mean</text>
+  <text x="473" y="237" font-size="10" text-anchor="middle" fill="#3d4a56">(quality 加權,缺則等權)</text>
+
+  <!-- 8x6 result grid: 42x37.33 cells at (580,40), 336x224 -->
+  <g stroke="#0b5cad" stroke-width="1.8" fill="#eef5fc">
+    <rect x="580" y="40" width="336" height="224"/>
+  </g>
+  <g stroke="#0b5cad" stroke-width="1.2" fill="none">
+    <path d="M622,40V264 M664,40V264 M706,40V264 M748,40V264 M790,40V264 M832,40V264 M874,40V264"/>
+    <path d="M580,77.3H916 M580,114.7H916 M580,152H916 M580,189.3H916 M580,226.7H916"/>
+  </g>
+  <rect x="706" y="114.7" width="42" height="37.3" fill="#0b5cad" fill-opacity="0.35"/>
+  <text x="748" y="26" font-size="13" font-weight="800" text-anchor="middle" fill="#0b5cad">聚合後:8×6 = 48 區(每區一個 DCC)</text>
+  <text x="748" y="284" font-size="11.5" text-anchor="middle" fill="#3d4a56">區內有效 cell 比例 &lt; min_valid_ratio(0.5)→ 該區該幀記 NaN</text>
+</svg>
+<figcaption>圖 7-1 · 粒度聚合:序列 grid 自述於檔頭,≠ 8×6 時以中心座標歸區後聚合。disparity 與 focus 用同一規則。</figcaption>
+</figure>
+
+<table class="spec">
+  <tr><th style="width:30%">規則</th><th>定義</th></tr>
+  <tr><td>歸區</td><td>以 cell 中心座標對 8×6 等分切割歸區;落在邊界者歸左/上區(確定性,無二義)</td></tr>
+  <tr><td><code>aggregation.method</code></td><td><code>median</code>(預設,抗離群)或 <code>weighted_mean</code>(以 quality 為權重,缺 quality 則等權);NaN cell 不計</td></tr>
+  <tr><td><code>aggregation.min_valid_ratio</code></td><td>預設 0.5;區內有效 cell 比例低於此 → 該區該幀無效(NaN),進入 D-6 有效樣本統計</td></tr>
+  <tr><td>一致性驗收</td><td>UT-10:無雜訊細粒度序列經兩種方法聚合,皆須與直接 8×6 序列一致(&lt;1e-9);0.49/0.50 邊界判定正確</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s8"><span class="no">8</span>誤差預算之數學推導</h2>
+
+<p>目的:把系統級精度需求(重複性、DCC 準確度)<b>反推</b>為外部 SAD 模組單點 disparity 的精度上限,
+作為可驗收的介面條件。推導全程以 config 參數符號表述,數字為預設 config 之推導示例。</p>
+
+<h3>8.1 已知條件與符號</h3>
+<table class="spec">
+  <tr><th style="width:18%">符號</th><th style="width:46%">意義</th><th>預設 config 示例值</th></tr>
+  <tr><td class="m">n</td><td>掃描點數(num_positions)</td><td class="m">10</td></tr>
+  <tr><td class="m">S = NEAR − FAR</td><td>sweep 全幅;S = span_af × (1 + far_margin + near_margin)</td><td class="m">400 × 1.2 = 480 DAC</td></tr>
+  <tr><td class="m">h = S/(n−1)</td><td>掃描步距</td><td class="m">480/9 ≈ 53.33 DAC</td></tr>
+  <tr><td class="m">k</td><td>真值 DCC(中央區)</td><td class="m">12.46 DAC/raw_px</td></tr>
+  <tr><td class="m">σ<sub>d</sub></td><td>單點 disparity 隨機誤差(iid,raw_pixel)——<b>待求上限</b></td><td class="m">—</td></tr>
+</table>
+
+<h3>8.2 推導</h3>
+<p><b>步驟 1 — DAC 離散度。</b>n 個等距點對其平均之平方和(等差級數之標準結果):</p>
+<div class="eq"><span class="no">(8-1)</span>S<sub>xx</sub> = Σ(dac<sub>i</sub> − d̄ac)² = h²·n(n²−1)/12 = 53.33² × 10×99/12 ≈ 2.35×10⁵   ⇒ √S<sub>xx</sub> ≈ 484.4</div>
+
+<p><b>步驟 2 — disparity 離散度。</b>真值關係 disp = (dac − b)/k 為線性映射,故:</p>
+<div class="eq"><span class="no">(8-2)</span>√S<sub>dd</sub> = √S<sub>xx</sub> / k ≈ 484.4 / 12.46 ≈ 38.9 raw px</div>
+<p>同時,全 sweep 的 disparity 動態範圍僅 ±S/(2k) ≈ <b>±19.3 raw px ≈ ±1.2 個 PD 影像格</b>——
+這說明外部 SAD 的次像素內插品質是全案精度的第一決定因素(整數格搜尋幾乎不供獻資訊)。</p>
+
+<p><b>步驟 3 — 斜率誤差傳遞。</b>以無噪之 DAC 為自變數方向表述(擬合 disp 對 DAC 再反解,一階等價),
+最小平方斜率估計的標準差:</p>
+<div class="eq"><span class="no">(8-3)</span>σ<sub>k</sub>/k ≈ σ<sub>d</sub> / √S<sub>dd</sub> = σ<sub>d</sub> · k / √S<sub>xx</sub> = σ<sub>d</sub> / 38.9</div>
+
+<p><b>步驟 4 — 由各系統準則反推 σ<sub>d</sub> 上限:</b></p>
+<table class="spec">
+  <tr><th style="width:34%">系統準則</th><th style="width:36%">反推式</th><th>σ<sub>d</sub> 上限(示例)</th></tr>
+  <tr><td>NFR-02:重複性 CV &lt; 2%</td><td class="m">σ_d ≤ 0.02·√Sxx/k</td><td><b>≤ 0.78 raw px</b> ← 綁定條件(margin=0 時收緊為 0.65)</td></tr>
+  <tr><td>IT-01:r² &gt; 0.99</td><td class="m">σ_d ≤ √(0.01·Sdd/(n−2))</td><td>≤ 1.37 raw px(最鬆,非綁定)</td></tr>
+  <tr><td>IT-01:中央 DCC 誤差 &lt; 3%(含系統項)</td><td>系統偏差另列預算</td><td>|bias| ≤ 0.3 raw px(占比 &lt; 1%)</td></tr>
+</table>
+
+<p><b>步驟 5 — 回歸方向(errors-in-variables)自檢。</b>實作採 <code>DAC = k·disp + b</code> 之一般 OLS,
+雜訊在自變數會造成斜率衰減偏差,量級為:</p>
+<div class="eq"><span class="no">(8-4)</span>bias ≈ − σ<sub>d</sub>² / (S<sub>dd</sub>/n) = − 0.78² / 151.2 ≈ −0.40%</div>
+<p>在預算內可忽略(&lt;0.5%),故 <b>v1 採一般 OLS 有數學依據</b>;fitter 介面設計為可抽換,
+精度需求提高時再換 EIV/反向擬合(開發備忘 #2)。</p>
+
+<h3>8.3 結論:對外部 SAD 模組的驗收要求</h3>
+<div class="callout badbox"><span class="t">介面驗收條件(固定值,對 margin ∈ [0, 0.2] 全域保守)</span>
+於全 sweep 動態範圍內,單點 disparity:
+<b>|系統偏差| ≤ 0.3 raw px(≈0.019×pitch) 且 隨機 σ ≤ 0.5 raw px(≈0.031×pitch)</b>。<br>
+取值邏輯:以 margin=0 之最嚴綁定上限(0.65)再留裕度;margin 加大時裕度更寬。
+本工具端以 IT-07(蒙地卡羅:注入 σ=0.5 + bias=0.3,×10 次,驗證 CV&lt;2% 且偏差&lt;3%)閉環驗證此預算成立。</div>
+
+<div class="callout warnbox"><span class="t">歷史勘誤(避免引用舊文件)</span>
+早期草稿之 UT-03/04 容差(0.35×/0.25×pitch = 5.6/4 raw px)<b>過鬆約一個數量級,已作廢</b>。
+若外部團隊手上有舊版數字,請以本節為準。</div>
+
+<!-- ============================================================ -->
+<h2 id="s9"><span class="no">9</span>參數化設定(config)總覽</h2>
+
+<p>設計原則(FR-01):<b>所有 Phase 之可調參數皆入 config,禁止散落於程式常數;
+規格中的數列/端點一律為公式推導示例,禁止寫死。</b>主格式 JSON(schema = SPEC-004 §2),ini 為選配一對一對映。</p>
+
+<div class="tablewrap">
+<table class="spec">
+  <tr><th style="width:28%">參數</th><th style="width:30%">約束 / 預設</th><th>用途</th></tr>
+  <tr><td class="m">sensor.width/height, pattern_period, pd_offsets…</td><td>見 SPEC-004 §2</td><td>pitch 推導與 config 驗證(Phase A)</td></tr>
+  <tr><td class="m">vcm.af_cal_inf / af_cal_macro</td><td>inf &lt; macro(示例 220 / 620)</td><td>掃描規劃基準(AF 校正之產物,前置輸入)</td></tr>
+  <tr><td class="m">dcc.far_margin / near_margin</td><td>0..0.2,<b>預設 0.1</b></td><td>sweep 端點外推:FAR/NEAR = AF ∓/± span×margin(示例 → 180/660)</td></tr>
+  <tr><td class="m">dcc.num_positions</td><td>固定 10(v1)</td><td>掃描點數</td></tr>
+  <tr><td class="m">dcc.grid_w / grid_h</td><td>8 / 6(v1)</td><td>DCC 分區</td></tr>
+  <tr><td class="m">dcc.input_disparity_unit</td><td>raw_pixel | pd_image_grid</td><td>外部序列之單位(讀取端轉換依據)</td></tr>
+  <tr><td class="m">dcc.output_disparity_unit</td><td>raw_pixel | pd_image_grid</td><td>PDLIB 期望單位(打包端轉換依據;待開放問題 #2 定案)</td></tr>
+  <tr><td class="m">dcc.q_format</td><td>4..8,預設 6</td><td>EEPROM 定點編碼</td></tr>
+  <tr><td class="m">dcc.tolerance</td><td>metal-shield 預設 0.20</td><td>Phase F 誤差判定</td></tr>
+  <tr><td class="m">dcc.min_valid_samples</td><td>預設 8(/10 幀)</td><td>單區可回歸之最低有效樣本數</td></tr>
+  <tr><td class="m">dcc.smooth_limit</td><td>預設 0.25</td><td>DCC map 平滑性警告(相鄰區差異)</td></tr>
+  <tr><td class="m">dcc.r2_warn</td><td>預設 0.98</td><td>回歸品質警告門檻</td></tr>
+  <tr><td class="m">focus.poly_order / peak_margin_steps</td><td>預設 4 / 1</td><td>focus 擬合階數 / E-F01 出界判定</td></tr>
+  <tr><td class="m">aggregation.method / min_valid_ratio</td><td>median | weighted_mean / 預設 0.5</td><td>D-5 粒度聚合(§7)</td></tr>
+  <tr><td class="m">exposure.pd_min/max_lsb</td><td>300 / 950 <span class="tag m2">M2/外部參考</span></td><td>離線模式不使用(像素域檢查屬外部)</td></tr>
+</table>
+</div>
+
+<h3>掃描規劃推導鏈(預設 config 示例)</h3>
+<div class="eq">span_af = 620 − 220 = 400 → FAR = 220 − 400×0.1 = 180;NEAR = 620 + 400×0.1 = 660;h = 480/9 ≈ 53.33</div>
+<div class="eq">DAC 序列(四捨五入,端點精確):180, 233, 287, 340, 393, 447, 500, 553, 607, 660</div>
+<p>E-F01 焦峰有效範圍 = (FAR + h, NEAR − h) ≈ (233, 607);誤差分母 = NEAR − FAR = 480。
+margin 改值時以上全部自動連動,任何端點/分母寫死即為 bug。</p>
+
+<!-- ============================================================ -->
+<h2 id="s10"><span class="no">10</span>輸出格式(report / 校正 block)</h2>
+
+<h3>10.1 report.json(資料真值來源)</h3>
+<ul class="tight">
+  <li>內容:config 快照、sweep 資料、48 區 <b>雙單位 DCC</b>(dcc_raw_px 與 dcc_pd_grid,供稽核)、截距、r²、誤差、PASS/FAIL、最差三區、錯誤碼、逐 Phase 耗時。</li>
+  <li>內建 <code>dcc_ratio_check = dcc_pd_grid / dcc_raw_px</code>,恆等於 pitch_x(16),自動示警漏乘/重複乘。</li>
+  <li>可追溯性(NFR-03):以落盤序列快照重跑,結果 bit-exact(IT-06)。EEPROM layout 將來換版,由 report 重打包即可,<b>不需重跑校正</b>。</li>
+</ul>
+
+<h3>10.2 校正 block(開發版 v4,993 bytes)</h3>
+<div class="tablewrap">
+<table class="spec">
+  <tr><th class="c">offset</th><th class="c">bytes</th><th>內容</th><th>編碼</th></tr>
+  <tr><td class="c m">0x0000</td><td class="c m">2</td><td>version = 4</td><td class="m">uint16 BE</td></tr>
+  <tr><td class="c m">0x0002</td><td class="c m">4</td><td>gain W, H(13×17)</td><td class="m">uint16 × 2</td></tr>
+  <tr><td class="c m">0x0006</td><td class="c m">442</td><td>Left Gain[221]</td><td class="m">Q10, uint16 BE</td></tr>
+  <tr><td class="c m">0x01C0</td><td class="c m">442</td><td>Right Gain[221]</td><td class="m">Q10, uint16 BE</td></tr>
+  <tr><td class="c m">0x037A</td><td class="c m">2</td><td>DCC Q format</td><td class="m">uint16</td></tr>
+  <tr><td class="c m">0x037C</td><td class="c m">4</td><td>DCC W, H(8×6)</td><td class="m">uint16 × 2</td></tr>
+  <tr><td class="c m">0x0380</td><td class="c m">96</td><td>DCC[48]</td><td class="m">Q(q), uint16 BE</td></tr>
+  <tr><td class="c m">0x03E0</td><td class="c m">1</td><td>checksum = Σ前段 % 256</td><td class="m">uint8</td></tr>
+</table>
+</div>
+<p>Q6 編碼示例:12.46 × 64 = 797.44 → <code>797 = 0x031D</code>。
+gain map 為 SPC 校正之產物,本工具自 NVM 讀入後<b>透傳</b>至 block(不重算)。
+量產前須逐位對齊 <code>PDAFCalibrationTools_EEPROM.h</code>(開放問題 #4,延期至 M2 燒錄前)。</p>
+
+<h3>10.3 閉環驗算清單(已全數驗證)</h3>
+<ul class="tight checks">
+  <li>PD 影像尺寸:<span class="m">4608/16 = 288(寬)、3456/8 = 432(高);blocks 144×108 = 15,552 × 8 對 = 124,416 = 288×432 ✔</span></li>
+  <li>EEPROM offset 鏈:<span class="m">0x0006+442=0x01C0;0x01C0+442=0x037A;…;0x0380+96=0x03E0;總長 993 bytes ✔</span></li>
+  <li>Q6 編碼:<span class="m">12.46×64=797.44 → 797=0x031D ✔</span></li>
+  <li>DAC 序列(margin 0.1):<span class="m">端點 180/660 精確、嚴格遞增、間距 53/54 交錯 ✔</span></li>
+  <li>單位比值:<span class="m">dcc_pd_grid/dcc_raw_px = 199.36/12.46 = 16 = pitch_x ✔</span></li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="s11"><span class="no">11</span>驗證與測試計畫</h2>
+
+<h3>11.1 合成資料(Sim 序列生成器)</h3>
+<p>直接生成 <code>disp_seq.json</code>,不經像素域。真值注入:<code>true_dcc(r,c)</code>(中央 12.46 → 角落 14.5)、
+合焦 <b>420 DAC</b>;<code>disp_true = (dac−420)/true_dcc</code>;focus 為以 420 為峰之單峰曲線。
+可注入:高斯雜訊 σ<sub>d</sub>、系統 bias、null、DAC 亂序、單位錯置、細/粗粒度——正負向測試皆備。
+無雜訊時解析真值 <b>k = true_dcc、b = 420、focus_peak = 420</b>(UT-05/06 準則依此)。</p>
+
+<h3>11.2 單元測試(UT)</h3>
+<div class="tablewrap">
+<table class="spec">
+  <tr><th class="c" style="width:9%">ID</th><th style="width:26%">對象</th><th>準則(節錄)</th></tr>
+  <tr><td class="c m">UT-01</td><td>sweep 規劃(FR-03/04)</td><td>端點 == 公式推導值(margin 0.1→180/660;0→220/620;0.05→200/640);10 點遞增、端點精確</td></tr>
+  <tr><td class="c m">UT-02</td><td>序列讀取(FR-08)</td><td>合法序列載入成功;形狀錯→E-D01;DAC 不符/非遞增/unit 錯→E-D02</td></tr>
+  <tr><td class="c m">UT-03</td><td>單位轉換(FR-09)</td><td>pd_image_grid 序列 ×16 後與 raw_pixel 序列 bit-exact 一致</td></tr>
+  <tr><td class="c m">UT-04</td><td>無效樣本(FR-11)</td><td>null→NaN;單區有效 7 點→E-D03;8 點通過</td></tr>
+  <tr><td class="c m">UT-05</td><td>回歸(FR-12)</td><td>無雜訊還原 k=12.46 / b=420 至 1e-6;負斜率→E-E01</td></tr>
+  <tr><td class="c m">UT-06</td><td>focus 峰值(FR-13)</td><td>無雜訊峰值 420±1;合焦 &gt; NEAR−step(示例 640)→E-F01</td></tr>
+  <tr><td class="c m">UT-07</td><td>判定(FR-14)</td><td>err 邊界 0.199/0.200/0.201 判定正確</td></tr>
+  <tr><td class="c m">UT-08</td><td>eeprom(FR-16)</td><td>12.46→0x031D;checksum 破壞可偵測;pack→read round-trip</td></tr>
+  <tr><td class="c m">UT-09</td><td>單位契約</td><td>雙單位比值 == pitch_x;漏乘(≈1)/重複乘(≈256)正確示警</td></tr>
+  <tr><td class="c m">UT-10</td><td>粒度聚合(D-5)</td><td>細粒度經 median/weighted 聚合皆與直接 8×6 一致(&lt;1e-9);0.49/0.50 邊界正確</td></tr>
+</table>
+</div>
+
+<h3>11.3 整合測試(IT)與硬體/驗收(HT/AT)</h3>
+<div class="tablewrap">
+<table class="spec">
+  <tr><th class="c" style="width:9%">ID</th><th style="width:38%">情境</th><th>準則</th></tr>
+  <tr><td class="c m">IT-01</td><td>標準 dry-run(無雜訊)</td><td>PASS;中央 DCC 誤差 &lt; 3%;全區 r² &gt; 0.99</td></tr>
+  <tr><td class="c m">IT-02</td><td>注入角落無效樣本</td><td>剔除生效;PASS 或於指定區正確 FAIL(E-D03)</td></tr>
+  <tr><td class="c m">IT-03</td><td>disparity 取負(模擬 L/R 對調)</td><td>E-E01 中止,現場資料落盤</td></tr>
+  <tr><td class="c m">IT-04</td><td>合焦 &gt; NEAR−step(示例 640)</td><td>E-F01 觸發</td></tr>
+  <tr><td class="c m">IT-06</td><td>離線重算</td><td>以落盤序列快照重跑,bit-exact 一致</td></tr>
+  <tr><td class="c m">IT-07</td><td>誤差預算閉環(§8)</td><td>注入 σ=0.5 + bias=0.3,×10 次:中央 DCC CV &lt; 2% 且偏差 &lt; 3%</td></tr>
+  <tr><td class="c m">IT-05</td><td>曝光過高幀 <span class="tag m2">M2</span></td><td>Phase C 於該幀 E-C03 中止</td></tr>
+  <tr><td class="c m">HT/AT</td><td>重複性、節拍、CDAF 金標比對、200 顆試跑 <span class="tag m2">M2/M3</span></td><td>CV&lt;2%;≤4 s;跳焦命中率 ≥95%;誤殺 &lt;2%、漏殺 =0</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s12"><span class="no">12</span>決議紀錄與開放問題處置</h2>
+
+<h3>12.1 本階段決議(2026-07-11)</h3>
+<ol class="tight">
+  <li><b>離線前期範圍</b>:擷取/SAD/燒錄外部化,介面保留(HAL 前期僅 Sim*)。</li>
+  <li><b>序列介面制定</b>:<code>disp_seq.json</code> v1(含 focus value 必填、自述式粒度與單位)。</li>
+  <li><b>單位契約強化</b>:<code>disparity_unit</code> 拆分為 input/output 兩參數;轉換僅限讀取端/打包端兩處;ratio_check 公式勘誤(恆等 pitch_x)。</li>
+  <li><b>合成真值對齊</b>:UT-05/06 期望值修正為 b = peak = 420(消除與生成器定義的矛盾)。</li>
+  <li><b>誤差預算重推</b>:舊 UT-03/04 容差作廢;改為外部驗收條件 bias ≤ 0.3 / σ ≤ 0.5 raw px + IT-07 閉環。</li>
+  <li><b>margin 預設 0.1</b>:連動處全面參數化(公式 + 推導示例),禁止寫死端點/分母。</li>
+  <li><b>粒度聚合</b>:SAD 輸出粒度可設定;median(預設)/ quality 加權平均;min_valid_ratio 0.5。</li>
+  <li><b>RAW 唯讀</b>:僅作互動式 UI 底圖(FR-18),不入計算路徑、不得寫入。</li>
+  <li><b>回歸方法</b>:v1 一般 OLS(EIV 偏差 ≈ −0.4% 可忽略);fitter 可抽換。</li>
+  <li><b>錯誤碼滾動制</b>:初期允許通用碼,M1 出口前收斂;鐵律 4 漸進嚴格化。</li>
+</ol>
+
+<h3>12.2 開放問題狀態</h3>
+<table class="spec">
+  <tr><th class="c" style="width:7%">#</th><th style="width:40%">問題</th><th class="c" style="width:14%">狀態</th><th>處置理由</th></tr>
+  <tr><td class="c m">1</td><td>Vendor PD offsets vs. 均勻子格假設</td><td class="c"><span class="tag defer">延期至 M2 前</span></td><td>主要影響外部 SAD 模組;本工具僅 config 數值連動;品質由 §8 預算把關</td></tr>
+  <tr><td class="c m">2</td><td>Runtime PDLIB 之 disparity 單位</td><td class="c"><span class="tag defer">延期至 M2 燒錄前</span></td><td>雙路徑已對沖(§6);定案時翻 <code>output_disparity_unit</code> 即可,不改程式</td></tr>
+  <tr><td class="c m">3</td><td>Chart 距離公差對 DCC 的靈敏度</td><td class="c"><span class="tag defer">轉 M1 分析任務</span></td><td>以合成序列生成器掃描合焦偏移 vs. DCC/截距;為 M1 完成後首批應用</td></tr>
+  <tr><td class="c m">4</td><td>EEPROM 實際 layout vs. 開發版 v4</td><td class="c"><span class="tag defer">延期至 M2 燒錄前</span></td><td>io.eeprom 隔離;report 為真值來源,layout 換版可離線重打包</td></tr>
+  <tr><td class="c m">5</td><td>SAD 輸出粒度與聚合規則</td><td class="c"><span class="tag closed">已關閉</span></td><td>粒度可設定 + median/加權聚合(§7;SPEC-004 §3a、SPEC-002 D-5)</td></tr>
+</table>
+<p>依 SPEC-005 §6 出場準則(「開放問題全數關閉<b>或明確延期</b>」),M0 之形式條件已成立;
+上述延期項<b>均不阻擋 M1 開發</b>。</p>
+
+<!-- ============================================================ -->
+<h2 id="s13"><span class="no">13</span>里程碑與下一步</h2>
+
+<table class="spec">
+  <tr><th class="c" style="width:8%">M</th><th style="width:30%">內容</th><th>完成定義</th></tr>
+  <tr><td class="c m">M0</td><td>規格凍結(本階段)</td><td>SPEC 系列三方 review 簽核;開放問題全數關閉或明確延期 ✔(待簽核)</td></tr>
+  <tr><td class="c m">M1</td><td>離線管線</td><td>合成/外部序列 dry-run 全流程 PASS;UT-01..10 綠;離線運算 ≤ 1 s</td></tr>
+  <tr><td class="c m">M2</td><td>硬體整合</td><td>對接實機擷取與外部 SAD 模組;真實模組端到端校正;EEPROM 實體燒錄;關閉延期之開放問題</td></tr>
+  <tr><td class="c m">M3</td><td>產線化</td><td>節拍 ≤ 4 s;HT/AT 全過(CV&lt;2%、跳焦命中 ≥95%、誤殺 &lt;2%、漏殺 =0)</td></tr>
+</table>
+
+<h3>立即行動項</h3>
+<table class="spec">
+  <tr><th style="width:52%">事項</th><th style="width:20%" class="c">負責</th><th>備註</th></tr>
+  <tr><td>三方 review 簽核 SPEC-000〜005(rev 2026-07-11(4))</td><td class="c">校正 / 演算法 / 產線</td><td>M0 出場之最後條件</td></tr>
+  <tr><td>對齊並凍結 <code>disp_seq.json</code> v1 格式(§5)與精度驗收(§8)</td><td class="c">本工具 ↔ 外部 SAD 團隊</td><td><b>唯一跨團隊介面依賴</b>,越早凍結返工越少</td></tr>
+  <tr><td>宣告規格凍結 → 進入 M1:依 SPEC-003 分層建骨架,先寫 UT-01..10 再實作</td><td class="c">本工具</td><td>dry-run(IT-01)綠後才碰硬體層</td></tr>
+  <tr><td>M1 完成後執行開放問題 #3 之靈敏度模擬</td><td class="c">本工具</td><td>合成序列掃描 chart 距離偏移</td></tr>
+</table>
+
+<footer>
+DCC_calibration · M0 階段報告 v1.0 · 2026-07-11 · 對應規格:SPEC-000〜005(rev 2026-07-11(4))·
+本文件為規格之導讀與跨團隊對齊摘要;規範性內容以 specs/ 各檔為準,如有出入以 SPEC 系列為權威。
+</footer>
+
+</div>
+</body>
+</html>

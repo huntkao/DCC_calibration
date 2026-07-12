@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# 校正資料(RAW/序列/輸出不入版控,僅保留目錄結構)
+data/raw/*
+data/output/*
+data/disparity/*
+!data/**/.gitkeep
+
+# Python(M1 之後)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
