@@ -12,20 +12,36 @@ EEPROM 實體燒錄皆由外部模組承擔,本工具消費外部之 disparity/f
 RAW 由外部擷取模組提供,本工具**唯讀**載入作互動式 UI 底圖(不參與計算、不得寫入)。
 介面保留待 M2 對接。所有 Phase 參數必須可由 config 設定。
 
-## 目前狀態:M1 開發階段(M0 已凍結 2026-07-12)
+## 目前狀態:M1 完成(2026-07-13),待驗收後進 M2 硬體整合
 
-實作語言 **C++17**;GUI = Dear ImGui(docking)+ ImPlot + ImGuiTexInspect(vendored);
-測試 = Catch2;建置 = CMake。開發順序:先寫測試(UT-01..10)再實作;
-CLI 自 M1a 起即存在(解耦試金石);dry-run(IT-01)綠了才碰硬體層。
+實作語言 **C++17**;GUI = Dear ImGui v1.91.9b-docking + ImPlot v0.17 + GLFW 3.4
+(FetchContent 鎖版;RAW 檢視為 ImPlot 自製,未用 TexInspect——理由見開發紀錄 §2.5)。
+測試 = Catch2(56 案例全綠)。CLI(dcc_cal)與 GUI(dcc_gui)能力等價(解耦試金石)。
 規格變更仍走 spec 勘誤流程(改檔 + 頂部 revision 一行)。
+
+### 跨機器上手(換手第一件事)
+```
+cmake -S . -B build -G Ninja && cmake --build build   # 首次需網路拉依賴
+ctest --test-dir build                                # 應 56/56 綠
+./build/src/dcc_cli/dcc_cal --dry-run                 # CLI 驗證
+./build/src/dcc_gui/dcc_gui --smoke                   # GUI 煙霧測試(隱藏視窗)
+```
+每次改動的最低驗證:build 零警告(本專案 targets)→ ctest 全綠 → `--smoke`。
+
+### 環境注意(macOS)
+- 新版 macOS 無 PingFang.ttc → 字型退 Hiragino Sans GB + MergeMode 補符號 glyph;
+  GUI 首幀有 glyph 自檢(缺字記 log),勿手動猜「?」問題。
+- ImPlot heatmap 第一列畫在最上方——餵資料勿翻轉(曾出過鏡射 bug,見開發紀錄 §3.4)。
 
 ## 必讀順序(動手前)
 
-1. `specs/SPEC-000_專案總覽.md` — 範圍與名詞(SPC/AF 校正是前置輸入,不在 scope)
-2. `specs/SPEC-002_校正流程規格.md` — Phase A–G 工序
-3. `specs/SPEC-003_架構與模組介面.md` — 分層與介面契約
-4. `specs/SPEC-004_資料格式.md` — **單位權威定義,最重要**
-5. 領域知識:`docs/DCC校正step-by-step詳解.md`、`docs/PhaseD-1_PD像素解析圖解.html`
+1. `docs/開發紀錄_M0-M1.md` — **換手必讀**:重要發現、驗證查核、設計改動與理由、M2 待辦
+2. `specs/SPEC-000_專案總覽.md` — 範圍與名詞(SPC/AF 校正是前置輸入,不在 scope)
+3. `specs/SPEC-002_校正流程規格.md` — Phase A–G 工序
+4. `specs/SPEC-003_架構與模組介面.md` — 分層與介面契約
+5. `specs/SPEC-004_資料格式.md` — **單位權威定義,最重要**
+6. 領域知識:`docs/DCC校正step-by-step詳解.md`、`docs/PhaseD-1_PD像素解析圖解.html`;
+   跨團隊摘要:`docs/M0_階段報告_規格制定與規劃.html`(已發布 GitHub Pages)
 
 ## 鐵律(違反 = bug)
 

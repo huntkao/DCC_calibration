@@ -24,6 +24,9 @@ config/   sensor_config_example.json(對映 SPEC-004 §2)
 data/     raw/(擷取暫存)、output/(報告)——實作後啟用
 ```
 
+> **換手/新機器上手**:先讀 `docs/開發紀錄_M0-M1.md`(重要發現、驗證查核、
+> 設計改動、M2 待辦、build 指令),再讀 CLAUDE.md 與 specs/。
+
 ## 閱讀順序
 
 1. `docs/DCC校正step-by-step詳解.md` — 領域知識
