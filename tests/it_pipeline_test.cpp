@@ -88,6 +88,17 @@ TEST_CASE("IT-04: 合焦 640(> NEAR−step)之序列 → E-F01", "[it04]") {
   REQUIRE(out.error_code == "E-F01");
 }
 
+TEST_CASE("sim::pretty:縮排輸出為合法 JSON 且與原始內容等值", "[sim][pretty]") {
+  const auto cfg = app_cfg();
+  auto spec = base_spec(cfg);
+  spec.with_quality = true;
+  spec.null_cells = {{0, 0, 0}};  // 含 null 也要等值
+  const std::string compact = generate(spec);
+  const std::string pretty_text = dcc::sim::pretty(compact);
+  REQUIRE(nlohmann::json::parse(pretty_text) == nlohmann::json::parse(compact));
+  REQUIRE(pretty_text.find("\n      [") != std::string::npos);  // 每列一行之結構
+}
+
 TEST_CASE("IT-06: 同一序列重跑,報告 bit-exact 一致", "[it06]") {
   const auto cfg = app_cfg();
   auto spec = base_spec(cfg);

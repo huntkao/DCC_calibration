@@ -1,0 +1,56 @@
+[Window][WindowOverViewport_11111111]
+Pos=0,21
+Size=1600,979
+Collapsed=0
+
+[Window][Debug##Default]
+Pos=60,60
+Size=400,400
+Collapsed=0
+
+[Window][Sim 工作台]
+Pos=0,21
+Size=361,444
+Collapsed=0
+DockId=0x00000005,0
+
+[Window][Config]
+Pos=1210,21
+Size=390,832
+Collapsed=0
+DockId=0x00000008,0
+
+[Window][結果總覽]
+Pos=0,467
+Size=361,386
+Collapsed=0
+DockId=0x00000006,0
+
+[Window][DCC / 誤差 map]
+Pos=363,21
+Size=845,832
+Collapsed=0
+DockId=0x00000004,0
+
+[Window][區域檢視]
+Pos=547,423
+Size=782,527
+Collapsed=0
+
+[Window][Log 主控台]
+Pos=0,855
+Size=1600,145
+Collapsed=0
+DockId=0x00000002,0
+
+[Docking][Data]
+DockSpace         ID=0x08BD597D Window=0x1BBC0F80 Pos=0,21 Size=1600,979 Split=Y
+  DockNode        ID=0x00000001 Parent=0x08BD597D SizeRef=1600,1016 Split=X
+    DockNode      ID=0x00000007 Parent=0x00000001 SizeRef=1208,1000 Split=X
+      DockNode    ID=0x00000003 Parent=0x00000007 SizeRef=361,1000 Split=Y Selected=0xF6B2223C
+        DockNode  ID=0x00000005 Parent=0x00000003 SizeRef=395,543 Selected=0xF6B2223C
+        DockNode  ID=0x00000006 Parent=0x00000003 SizeRef=395,471 Selected=0xE7B88ADE
+      DockNode    ID=0x00000004 Parent=0x00000007 SizeRef=845,1000 CentralNode=1 Selected=0x5C38C24D
+    DockNode      ID=0x00000008 Parent=0x00000001 SizeRef=390,1000 Selected=0x46F44F93
+  DockNode        ID=0x00000002 Parent=0x08BD597D SizeRef=1600,145 Selected=0x0F0108A9
+

@@ -43,5 +43,6 @@ add_executable(dcc_gui
   gui_state.cpp
   panels.cpp
 )
-target_link_libraries(dcc_gui PRIVATE dcc_app dcc_sim imgui_bundle)
+target_link_libraries(dcc_gui PRIVATE dcc_app dcc_sim imgui_bundle
+                                      nlohmann_json::nlohmann_json)
 target_compile_options(dcc_gui PRIVATE ${DCC_WARNINGS})

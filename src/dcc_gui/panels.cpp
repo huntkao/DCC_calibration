@@ -1,7 +1,9 @@
 #include "panels.hpp"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 
@@ -18,6 +20,19 @@ namespace {
 constexpr ImVec4 kPassCol{0.05f, 0.55f, 0.22f, 1.0f};
 constexpr ImVec4 kFailCol{0.80f, 0.10f, 0.10f, 1.0f};
 constexpr ImVec4 kWarnCol{0.72f, 0.48f, 0.00f, 1.0f};
+
+// 存檔檔名:參數後綴(σ/bias/seed/合焦/粒度/null)+ 時間戳,提高辨識度。
+std::string seq_filename(const GuiState& s) {
+  char ts[32];
+  const std::time_t t = std::time(nullptr);
+  std::strftime(ts, sizeof(ts), "%Y%m%d-%H%M%S", std::localtime(&t));
+  char buf[256];
+  std::snprintf(buf, sizeof(buf), "disp_seq_s%.2f_b%.2f_sd%u_fc%.0f_%dx%d%s_%s.json",
+                s.spec.noise_sigma, s.spec.bias, s.spec.seed, s.spec.focus_center,
+                s.spec.grid_w, s.spec.grid_h,
+                s.null_frames > 0 ? ("_null" + std::to_string(s.null_frames)).c_str() : "", ts);
+  return buf;
+}
 
 bool slider_d(const char* label, double* v, float lo, float hi, const char* fmt = "%.2f") {
   float f = static_cast<float>(*v);
@@ -53,8 +68,9 @@ void draw_sim_panel(GuiState& s) {
   if (ImGui::Button("序列存檔")) {
     namespace fs = std::filesystem;
     fs::create_directories("data/disparity/SIM_GUI");
-    std::ofstream("data/disparity/SIM_GUI/disp_seq.json") << s.last_seq_json;
-    s.log_add(LogLevel::info, "序列已存:data/disparity/SIM_GUI/disp_seq.json");
+    const std::string path = "data/disparity/SIM_GUI/" + seq_filename(s);
+    std::ofstream(path) << dcc::sim::pretty(s.last_seq_json);
+    s.log_add(LogLevel::info, "序列已存:" + path);
   }
   if (s.dirty) { ImGui::SameLine(); ImGui::TextColored(kWarnCol, "● 結果已過期(stale)"); }
   ImGui::End();

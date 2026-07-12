@@ -31,4 +31,8 @@ double true_dcc(int r, int c, int grid_w, int grid_h, double center_dcc, double 
 // 生成 JSON 文字(可直接餵 disp_seq_reader 或落盤)。
 std::string generate(const SynthSpec& spec);
 
+// 結構化縮排:標量鍵各一行、data/focus/quality 每「列」一行——
+// 人工可讀且不逐元素爆行;輸出與輸入為等值 JSON。
+std::string pretty(const std::string& compact_json);
+
 }  // namespace dcc::sim

@@ -74,4 +74,33 @@ std::string generate(const SynthSpec& s) {
   return j.dump();
 }
 
+
+std::string pretty(const std::string& compact_json) {
+  using nlohmann::json;
+  const json j = json::parse(compact_json);
+  std::string out = "{\n";
+  for (const char* k : {"module_id", "unit", "pitch_x", "grid_w", "grid_h"})
+    if (j.contains(k)) out += "  \"" + std::string(k) + "\": " + j[k].dump() + ",\n";
+  out += "  \"dacs\": " + j["dacs"].dump() + ",\n";
+
+  bool first_plane = true;
+  for (const char* key : {"data", "focus", "quality"}) {
+    if (!j.contains(key)) continue;
+    if (!first_plane) out += ",\n";
+    first_plane = false;
+    out += "  \"" + std::string(key) + "\": [\n";
+    const auto& frames = j[key];
+    for (size_t f = 0; f < frames.size(); ++f) {
+      out += "    [\n";
+      const auto& rows = frames[f];
+      for (size_t r = 0; r < rows.size(); ++r)
+        out += "      " + rows[r].dump() + (r + 1 < rows.size() ? ",\n" : "\n");
+      out += (f + 1 < frames.size()) ? "    ],\n" : "    ]\n";
+    }
+    out += "  ]";
+  }
+  out += "\n}\n";
+  return out;
+}
+
 }  // namespace dcc::sim
