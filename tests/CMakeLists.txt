@@ -8,6 +8,11 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(dcc_tests
   ut01_sweep_test.cpp
+  ut05_regression_test.cpp
+  ut06_focus_test.cpp
+  ut07_validate_test.cpp
+  ut08_eeprom_test.cpp
+  ut09_units_test.cpp
 )
 target_link_libraries(dcc_tests PRIVATE dcc_core Catch2::Catch2WithMain)
 
