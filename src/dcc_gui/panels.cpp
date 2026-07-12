@@ -49,6 +49,7 @@ void draw_sim_panel(GuiState& s) {
   ImGui::TextWrapped("合成序列生成(dcc_sim)。參數變更後即時重生成並跑完整管線;"
                      "生成之序列與外部 SAD 模組同格式(SPEC-004 §3a)。");
   ImGui::Separator();
+  ImGui::PushItemWidth(190.0f);
 
   bool ch = false;
   ch |= slider_d("雜訊 σ [raw px]", &s.spec.noise_sigma, 0.0f, 2.0f);
@@ -77,6 +78,7 @@ void draw_sim_panel(GuiState& s) {
     s.log_add(LogLevel::info, "序列已存:" + path);
   }
   if (s.dirty) { ImGui::SameLine(); ImGui::TextColored(kWarnCol, "● 結果已過期(stale)"); }
+  ImGui::PopItemWidth();
   ImGui::End();
 }
 
@@ -84,6 +86,7 @@ void draw_sim_panel(GuiState& s) {
 void draw_config_panel(GuiState& s) {
   ImGui::Begin("Config");
   ImGui::TextDisabled("hash(載入時): %s", s.cfg.hash.c_str());
+  ImGui::PushItemWidth(190.0f);
   bool ch = false;
 
   if (ImGui::CollapsingHeader("VCM / Sweep", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -121,6 +124,7 @@ void draw_config_panel(GuiState& s) {
     s.log_add(LogLevel::info, "config 已重設為預設值");
   }
   if (ch) s.dirty = true;
+  ImGui::PopItemWidth();
   ImGui::End();
 }
 
@@ -330,7 +334,41 @@ void draw_raw_view(GuiState& s) {
     }
   }
 
+  // ── RAW 存檔(含覆寫確認)──────────────────────────────────────────
+  static char save_path[256] = "data/raw/SIM_GUI/frame_demo.raw";
+  const auto do_save = [&]() {
+    namespace fs = std::filesystem;
+    fs::create_directories(fs::path(save_path).parent_path());
+    std::ofstream f(save_path, std::ios::binary);
+    f.write(reinterpret_cast<const char*>(s.raw.pixels.data()),
+            static_cast<std::streamsize>(s.raw.pixels.size() * 2));
+    std::snprintf(s.raw_path, sizeof(s.raw_path), "%s", save_path);  // 方便回讀驗證
+    s.log_add(LogLevel::info, std::string("RAW 已存:") + save_path + "(" +
+                                  std::to_string(s.raw.pixels.size() * 2) + " bytes)");
+  };
+  ImGui::SetNextItemWidth(320);
+  ImGui::InputText("##savepath", save_path, sizeof(save_path));
+  ImGui::SameLine();
+  if (ImGui::Button("RAW 存檔")) {
+    if (!s.raw_loaded) {
+      s.log_add(LogLevel::warn, "尚無 RAW 內容可存");
+    } else if (std::filesystem::exists(save_path)) {
+      ImGui::OpenPopup("覆寫確認");
+    } else {
+      do_save();
+    }
+  }
+  if (ImGui::BeginPopupModal("覆寫確認", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::Text("檔案已存在:\n%s\n\n確定覆寫?", save_path);
+    ImGui::Separator();
+    if (ImGui::Button("覆寫", ImVec2(120, 0))) { do_save(); ImGui::CloseCurrentPopup(); }
+    ImGui::SameLine();
+    if (ImGui::Button("取消", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
+
   int range[2] = {s.raw_lo, s.raw_hi};
+  ImGui::SetNextItemWidth(190);
   if (ImGui::DragIntRange2("對比拉伸 [DN]", &range[0], &range[1], 2, 0, 1023)) {
     s.raw_lo = range[0]; s.raw_hi = range[1]; s.raw_tex_stale = true;
   }
@@ -372,9 +410,13 @@ void draw_raw_view(GuiState& s) {
             lx.push_back(bx + kPdL[i][0] + 0.5); ly.push_back(by + kPdL[i][1] + 0.5);
             rx.push_back(bx + kPdR[i][0] + 0.5); ry.push_back(by + kPdR[i][1] + 0.5);
           }
-      ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, ImVec4(0.15f, 0.45f, 0.95f, 0.85f));
+      // 同步設定 item 主色(legend 取 item 色)與 marker 色,確保兩者一致。
+      const ImVec4 col_l(0.15f, 0.45f, 0.95f, 0.85f), col_r(0.90f, 0.20f, 0.20f, 0.85f);
+      ImPlot::SetNextLineStyle(col_l);
+      ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, col_l, IMPLOT_AUTO, col_l);
       ImPlot::PlotScatter("PD L", lx.data(), ly.data(), static_cast<int>(lx.size()));
-      ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, ImVec4(0.90f, 0.20f, 0.20f, 0.85f));
+      ImPlot::SetNextLineStyle(col_r);
+      ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, col_r, IMPLOT_AUTO, col_r);
       ImPlot::PlotScatter("PD R", rx.data(), ry.data(), static_cast<int>(rx.size()));
     }
 
@@ -386,6 +428,15 @@ void draw_raw_view(GuiState& s) {
             s.raw.pixels[static_cast<size_t>(py) * static_cast<size_t>(s.raw.width) +
                          static_cast<size_t>(px)];
         const int t = pd_type(px, py);
+
+        // 高倍率(單像素 ≥ 6 螢幕 px)時 snap 到像素並描框。
+        const ImVec2 pa = ImPlot::PlotToPixels(ImPlotPoint(px, py));
+        const ImVec2 pb = ImPlot::PlotToPixels(ImPlotPoint(px + 1, py + 1));
+        if (std::fabs(pb.x - pa.x) >= 6.0f) {
+          ImPlot::PushPlotClipRect();
+          ImPlot::GetPlotDrawList()->AddRect(pa, pb, IM_COL32(255, 215, 0, 255), 0.0f, 0, 2.0f);
+          ImPlot::PopPlotClipRect();
+        }
         ImGui::BeginTooltip();
         ImGui::Text("(%d, %d)  DN=%u%s", px, py, dn,
                     t == 1 ? "  [PD L]" : (t == 2 ? "  [PD R]" : ""));
@@ -409,10 +460,12 @@ void draw_scan(GuiState& s) {
                      "沿用 Sim 工作台目前參數(σ/bias/nl/seed),僅平移合焦位置。"
                      "注意:nl=0(理想線性)時 DCC 理論上不受偏移影響,"
                      "請先於 Sim 工作台設定非線性 nl。");
+  ImGui::PushItemWidth(190.0f);
   float range = static_cast<float>(s.scan_range);
   if (ImGui::SliderFloat("掃描範圍 ±[DAC]", &range, 10.0f, 200.0f, "%.0f"))
     s.scan_range = static_cast<double>(range);
   ImGui::SliderInt("掃描點數", &s.scan_steps, 9, 81);
+  ImGui::PopItemWidth();
   if (ImGui::Button("執行掃描")) s.run_scan();
 
   if (!s.scan.empty()) {

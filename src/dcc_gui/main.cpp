@@ -30,14 +30,32 @@ void load_cjk_font(dcc::gui::GuiState& state) {
       "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc" // Linux Noto
   };
   ImGuiIO& io = ImGui::GetIO();
+
+  // ChineseFull 未涵蓋希臘字母(σ)、箭頭(→)、數學符號(Δ 屬希臘)、
+  // 幾何圖形(●)等 → 以 builder 補齊,否則顯示為 "?"。
+  static ImVector<ImWchar> ranges;  // 必須存活至字型圖集建置完成
+  if (ranges.empty()) {
+    ImFontGlyphRangesBuilder b;
+    b.AddRanges(io.Fonts->GetGlyphRangesChineseFull());
+    static const ImWchar extra[] = {
+        0x0370, 0x03FF,  // 希臘字母(σ、Δ…)
+        0x2190, 0x21FF,  // 箭頭(→…)
+        0x2200, 0x22FF,  // 數學運算子(≈、≤…)
+        0x2500, 0x257F,  // 框線
+        0x25A0, 0x25FF,  // 幾何圖形(●…)
+        0,
+    };
+    b.AddRanges(extra);
+    b.BuildRanges(&ranges);
+  }
+
   for (const char* path : candidates) {
     FILE* f = std::fopen(path, "rb");
     if (!f) continue;
     std::fclose(f);
     ImFontConfig cfg;
     cfg.OversampleH = 2;
-    if (io.Fonts->AddFontFromFileTTF(path, 15.5f, &cfg,
-                                     io.Fonts->GetGlyphRangesChineseFull())) {
+    if (io.Fonts->AddFontFromFileTTF(path, 15.5f, &cfg, ranges.Data)) {
       state.log_add(dcc::gui::LogLevel::info, std::string("字型:") + path);
       return;
     }
