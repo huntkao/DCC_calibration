@@ -37,6 +37,7 @@ data/     raw/(擷取暫存)、output/(報告)——實作後啟用
 - [ ] 與外部 SAD 模組負責方對齊 `disp_seq.json` 格式(SPEC-004 §3a)
 - [x] M1a 核心 + CLI:dcc_core/io/app + Sim 生成器;UT-01..10 + IT-01/02/03/04/06/07
       全綠(46 案例);`dcc_cal --dry-run` 端到端可跑(build:`cmake -S . -B build -G Ninja && cmake --build build`)
-- [ ] M1b GUI 骨架:docking 佈局、config 面板、pipeline 控制、log 主控台
-- [ ] M1c 視覺化:heatmap / 逐區回歸圖 / focus 曲線 / RAW 檢視(TexInspect)
+- [x] M1b GUI 骨架:docking 佈局、Sim 工作台、config 面板、pipeline 自動重算、
+      log 主控台;含 DCC/err heatmap、逐區回歸圖、focus 曲線(啟動:`./build/src/dcc_gui/dcc_gui`)
+- [ ] M1c 視覺化補完:RAW 檢視(TexInspect)、區域聯動 polish、合焦偏移靈敏度掃描(開放問題 #3)
 - [ ] M1d 強固化:全 E-code 演練、session 存讀、report 檢視、離線重算

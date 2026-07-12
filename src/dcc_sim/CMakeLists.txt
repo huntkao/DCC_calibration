@@ -3,3 +3,4 @@ add_library(dcc_sim STATIC
 )
 target_include_directories(dcc_sim PUBLIC include)
 target_link_libraries(dcc_sim PUBLIC dcc_core PRIVATE nlohmann_json::nlohmann_json)
+target_compile_options(dcc_sim PRIVATE ${DCC_WARNINGS})

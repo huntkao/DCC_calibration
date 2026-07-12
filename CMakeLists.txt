@@ -9,7 +9,8 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_compile_options(-Wall -Wextra -Wconversion)
+# 警告只套用在本專案 targets(第三方原始碼不受影響)。
+set(DCC_WARNINGS -Wall -Wextra -Wconversion)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -24,6 +25,11 @@ add_subdirectory(src/dcc_io)
 add_subdirectory(src/dcc_sim)
 add_subdirectory(src/dcc_app)
 add_subdirectory(src/dcc_cli)
+
+option(DCC_BUILD_GUI "Build the ImGui desktop workbench (dcc_gui)" ON)
+if(DCC_BUILD_GUI)
+  add_subdirectory(src/dcc_gui)
+endif()
 
 option(DCC_BUILD_TESTS "Build unit tests (SPEC-005 UT-01..10)" ON)
 if(DCC_BUILD_TESTS)

@@ -8,3 +8,4 @@ add_library(dcc_core STATIC
   src/aggregate.cpp
 )
 target_include_directories(dcc_core PUBLIC include)
+target_compile_options(dcc_core PRIVATE ${DCC_WARNINGS})
