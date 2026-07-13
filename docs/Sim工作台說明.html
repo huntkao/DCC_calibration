@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sim 工作台完全解析 — 參數物理意義、生成模型與規格沿革</title>
+<style>
+  :root{
+    --ink:#10181f; --sub:#3d4a56; --line:#c9d3dc; --line-soft:#e2e8ee;
+    --acc:#0b5cad; --acc-bg:#eef5fc;
+    --ok:#0a6e35; --warn:#8a5a00; --warn-bg:#fdf6e3;
+    --ext-bg:#f4f6f8; --bad:#a01818; --bad-bg:#fbeeee;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;color:var(--ink);background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei","Segoe UI",sans-serif;
+    font-size:15px;line-height:1.75;}
+  .page{max-width:1020px;margin:0 auto;padding:0 28px 90px;}
+  header.rep{border-bottom:3px solid var(--ink);padding:42px 0 20px;margin-bottom:10px;}
+  header.rep .kicker{font-size:13px;letter-spacing:.18em;color:var(--acc);font-weight:700;}
+  header.rep h1{font-size:28px;margin:6px 0 4px;line-height:1.35;}
+  header.rep .sub{color:var(--sub);font-size:14.5px;}
+  nav.toc{background:var(--ext-bg);border:1px solid var(--line);border-radius:8px;
+    padding:14px 22px;margin:24px 0 40px;font-size:14px;}
+  nav.toc b{display:block;margin-bottom:6px;}
+  nav.toc ol{margin:0;padding-left:22px;columns:2;column-gap:40px;}
+  nav.toc a{color:var(--acc);text-decoration:none;} nav.toc a:hover{text-decoration:underline;}
+  h2{font-size:20px;margin:52px 0 14px;padding:9px 14px;background:var(--ink);color:#fff;border-radius:6px;}
+  h2 .no{color:#9fc3e8;margin-right:10px;font-family:var(--mono);}
+  h3{font-size:16.5px;margin:28px 0 10px;padding-left:11px;border-left:4px solid var(--acc);}
+  p{margin:8px 0;}
+  code,.mono{font-family:var(--mono);font-size:.92em;background:var(--ext-bg);padding:1px 5px;border-radius:4px;}
+  strong{color:#000;}
+  table.spec{width:100%;border-collapse:collapse;margin:12px 0 18px;font-size:13.5px;}
+  table.spec th{background:var(--ink);color:#fff;text-align:left;padding:7px 10px;font-weight:600;}
+  table.spec td{border:1px solid var(--line);padding:6px 10px;vertical-align:top;}
+  table.spec tr:nth-child(even) td{background:#f8fafc;}
+  table.spec td.c{text-align:center;} table.spec td.m{font-family:var(--mono);font-size:12.5px;white-space:nowrap;}
+  .tablewrap{overflow-x:auto;}
+  .eq{background:#f8fafc;border:1px solid var(--line-soft);border-left:4px solid var(--acc);
+    border-radius:6px;padding:10px 18px;margin:10px 0;font-family:var(--mono);font-size:14px;
+    overflow-x:auto;white-space:nowrap;}
+  .eq .no{float:right;color:var(--sub);font-size:12px;}
+  .callout{border-radius:8px;padding:12px 16px;margin:16px 0;border:1px solid;}
+  .callout .t{font-weight:800;display:block;margin-bottom:2px;}
+  .align{background:var(--acc-bg);border-color:#a9c8e6;} .align .t{color:var(--acc);}
+  .warnbox{background:var(--warn-bg);border-color:#e0c689;} .warnbox .t{color:var(--warn);}
+  .badbox{background:var(--bad-bg);border-color:#e0b1b1;} .badbox .t{color:var(--bad);}
+  figure{margin:22px 0;text-align:center;} figure svg{max-width:100%;height:auto;}
+  figcaption{font-size:13px;color:var(--sub);margin-top:6px;}
+  ul.tight,ol.tight{margin:6px 0;padding-left:24px;} ul.tight li,ol.tight li{margin:4px 0;}
+  sup,sub{line-height:0;}
+  @media print{.page{max-width:none;padding:0 6mm;} h2{break-after:avoid;} figure,table.spec,.callout{break-inside:avoid;} nav.toc{columns:1;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="rep">
+  <div class="kicker">DCC_CALIBRATION · 工程說明文件</div>
+  <h1>Sim 工作台完全解析</h1>
+  <div class="sub">合成資料生成模型 · 參數物理意義與數學推導 · 演練情境 · 相關規格沿革 —
+  目標:不讀程式碼即可完整掌握。對應版本:M1(2026-07-13),模組 <code>dcc_sim</code>。</div>
+</header>
+
+<nav class="toc">
+  <b>目錄</b>
+  <ol>
+    <li><a href="#s1">Sim 在系統中的定位</a></li>
+    <li><a href="#s2">產出資料結構</a></li>
+    <li><a href="#s3">生成模型總覽(核心公式)</a></li>
+    <li><a href="#s4">參數逐一解析(物理意義與推導)</a></li>
+    <li><a href="#s5">非線性:鐘型 vs S 型(圖解)</a></li>
+    <li><a href="#s6">err 機制與 focus 峰值偏移</a></li>
+    <li><a href="#s7">演練情境對照表</a></li>
+    <li><a href="#s8">相關規格修正沿革</a></li>
+    <li><a href="#s9">參數快速參考卡</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="s1"><span class="no">1</span>Sim 在系統中的定位</h2>
+
+<p>Sim(<code>dcc_sim</code>)是與<b>外部 SAD 模組平行的「資料生產者」</b>:
+它產出的序列與外部模組交付的 <code>disp_seq.json</code>(SPEC-004 §3a)格式完全相同,
+走同一個入口(讀取器 D-1〜D-6 驗證)進入管線——<b>管線無法分辨資料來自 Sim 還是實機</b>,
+這是刻意設計:開發期用合成資料把「消費端」做好,對接時外部模組照格式即插即用。</p>
+
+<figure>
+<svg viewBox="0 0 960 150" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC',sans-serif">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#3d4a56"/></marker></defs>
+  <rect x="14" y="20" width="180" height="52" rx="8" fill="#eef5fc" stroke="#0b5cad" stroke-width="1.6"/>
+  <text x="104" y="42" font-size="13" font-weight="700" text-anchor="middle" fill="#0b5cad">Sim 工作台(dcc_sim)</text>
+  <text x="104" y="60" font-size="11" text-anchor="middle" fill="#3d4a56">參數 → 合成序列(微秒級)</text>
+  <rect x="14" y="86" width="180" height="46" rx="8" fill="#f4f6f8" stroke="#5a6672" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="104" y="106" font-size="13" font-weight="700" text-anchor="middle" fill="#5a6672">外部 SAD 模組 [M2]</text>
+  <text x="104" y="123" font-size="11" text-anchor="middle" fill="#5a6672">實機 RAW → disparity</text>
+  <rect x="280" y="50" width="150" height="48" rx="8" fill="#fdf6e3" stroke="#d9bd7d" stroke-width="1.6"/>
+  <text x="355" y="71" font-size="12.5" font-weight="700" text-anchor="middle" fill="#8a5a00">disp_seq.json</text>
+  <text x="355" y="88" font-size="11" text-anchor="middle" fill="#3d4a56">同一格式(§3a)</text>
+  <rect x="500" y="50" width="180" height="48" rx="8" fill="#fff" stroke="#0b5cad" stroke-width="1.6"/>
+  <text x="590" y="71" font-size="12.5" font-weight="700" text-anchor="middle">讀取器 D-1〜D-6</text>
+  <text x="590" y="88" font-size="11" text-anchor="middle" fill="#3d4a56">驗證/單位轉換/聚合</text>
+  <rect x="748" y="50" width="198" height="48" rx="8" fill="#fff" stroke="#0b5cad" stroke-width="1.6"/>
+  <text x="847" y="71" font-size="12.5" font-weight="700" text-anchor="middle">管線 E/F/G</text>
+  <text x="847" y="88" font-size="11" text-anchor="middle" fill="#3d4a56">48 區 DCC/err → 報告/block</text>
+  <line x1="194" y1="46" x2="280" y2="66" stroke="#3d4a56" stroke-width="1.8" marker-end="url(#ar)"/>
+  <line x1="194" y1="109" x2="280" y2="86" stroke="#5a6672" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+  <line x1="430" y1="74" x2="500" y2="74" stroke="#3d4a56" stroke-width="1.8" marker-end="url(#ar)"/>
+  <line x1="680" y1="74" x2="748" y2="74" stroke="#3d4a56" stroke-width="1.8" marker-end="url(#ar)"/>
+</svg>
+<figcaption>圖 1-1 · Sim 與外部 SAD 模組是平行生產者;管線只認格式不認來源。</figcaption>
+</figure>
+
+<p>GUI 中所有 Sim 參數變更走「dirty → 重生成 → 重跑管線 → 更新快照」閉環,
+生成 48 區 × 10 幀為微秒級,體感即時。</p>
+
+<!-- ============================================================ -->
+<h2 id="s2"><span class="no">2</span>產出資料結構</h2>
+
+<h3>2.1 disp_seq.json(管線主要輸入)</h3>
+<div class="tablewrap">
+<table class="spec">
+  <tr><th style="width:15%">鍵</th><th style="width:26%">形狀/型別</th><th>內容與來源</th></tr>
+  <tr><td class="m">module_id</td><td>str</td><td><code>"SIM0001"</code></td></tr>
+  <tr><td class="m">unit</td><td>"raw_pixel"|"pd_image_grid"</td><td>disparity 單位宣告(隨 config <code>input_disparity_unit</code>)</td></tr>
+  <tr><td class="m">pitch_x</td><td>int(16)</td><td>單位驗算用(隨 config 推導)</td></tr>
+  <tr><td class="m">dacs</td><td>[int × N]</td><td>掃描序列,由 <code>sweep::plan</code> 公式推導(§4.1),嚴格遞增 FAR→NEAR</td></tr>
+  <tr><td class="m">grid_w / grid_h</td><td>int</td><td>8×6(標準)或 144×108(細粒度開關 → 行使 D-5 聚合)</td></tr>
+  <tr><td class="m">data</td><td>[N][h][w] float|<b>null</b></td><td><b>disparity</b>(生成模型 §3);null = 無效樣本</td></tr>
+  <tr><td class="m">focus</td><td>[N][h][w] float</td><td><b>focus value</b>(必填!Phase F 交叉驗證用)</td></tr>
+  <tr><td class="m">quality</td><td>同形狀(選填)</td><td>品質權重(Sim 輸出定值 1.0)</td></tr>
+</table>
+</div>
+<p>三個資料面共用形狀:<b>外層 = 幀(掃描點)、中層 = 列 r、內層 = 行 c(row-major)</b>。
+存檔檔名編碼生成條件(<code>disp_seq_s0.50_b0.30_sd7_fc420_8x6_null3_&lt;時間戳&gt;.json</code>),
+內容採「每列一行」結構化縮排,任何編輯器直接可讀。</p>
+
+<h3>2.2 示範 RAW(UI 底圖,不入計算)</h3>
+<p>4608×3456 uint16(10-bit,值域 0..1023),無檔頭 little-endian。像素模型:
+黑位 64 + 垂直線紋理(兩條互質週期弦波 37.0 / 61.7 px,避免與 16 px 取樣節拍共振)×
+輕微暗角(−22% 角落)+ ±3 抖動;PD 位置(32×32 週期、L/R 各 8 點)施加
+metal-shield 遮光(黑位以上衰減至 45%)。</p>
+
+<!-- ============================================================ -->
+<h2 id="s3"><span class="no">3</span>生成模型總覽(核心公式)</h2>
+
+<p>令 <b>u = dac − fc</b>(離焦量,DAC)、<b>H = sweep 半幅</b>(動態推導,§4.8)、
+<b>k = true_dcc(r,c)</b>(該區 DCC 真值):</p>
+
+<div class="eq"><span class="no">(3-1) disparity</span>disp(f,r,c) = (u/k) · (1 + nl2·(u/H) − nl3·(u/H)²) + bias + N(0, σ)   [raw_pixel]</div>
+<div class="eq"><span class="no">(3-2) focus</span>fv(f) = 1000 · exp( −( (dac − (fc + peak_offset)) / H )² )   (全區同型)</div>
+<div class="eq"><span class="no">(3-3) 真值場</span>true_dcc(r,c) = center_dcc + (corner_dcc − center_dcc) · min(1, √(dx²+dy²)/√2)</div>
+
+<p>其中 (3-3) 的 dx、dy 為 cell 對 grid 中心之正規化偏移(中心 0、四角 1)。
+每一項對應 GUI 的一支滑桿;<b>雜訊由 mt19937(seed) 驅動——同參數必出同資料</b>
+(bit-exact 重現性,IT-06 的基礎)。null 注入清單直接把指定 (幀,r,c) 輸出為 JSON null。</p>
+
+<figure>
+<svg viewBox="0 0 500 240" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC',sans-serif">
+  <defs>
+    <radialGradient id="dccfield" cx="50%" cy="50%" r="72%">
+      <stop offset="0%" stop-color="#e8f2fb"/><stop offset="55%" stop-color="#9dc3e6"/>
+      <stop offset="100%" stop-color="#0b5cad"/>
+    </radialGradient>
+  </defs>
+  <rect x="60" y="30" width="320" height="180" fill="url(#dccfield)" stroke="#10181f" stroke-width="1.5"/>
+  <g stroke="#ffffff" stroke-width="0.8" opacity="0.55">
+    <path d="M100,30V210 M140,30V210 M180,30V210 M220,30V210 M260,30V210 M300,30V210 M340,30V210"/>
+    <path d="M60,60H380 M60,90H380 M60,120H380 M60,150H380 M60,180H380"/>
+  </g>
+  <text x="220" y="126" font-size="13" font-weight="800" text-anchor="middle" fill="#10181f">12.46</text>
+  <text x="82" y="50" font-size="12" font-weight="700" fill="#fff">14.5</text>
+  <text x="356" y="200" font-size="12" font-weight="700" text-anchor="end" fill="#fff">14.5</text>
+  <text x="220" y="232" font-size="12" text-anchor="middle" fill="#3d4a56">8×6 區;中央 → 角落 依正規化徑向距離線性上升</text>
+  <text x="430" y="80" font-size="12" fill="#3d4a56">center_dcc</text>
+  <text x="430" y="98" font-size="12" fill="#3d4a56">= 12.46</text>
+  <text x="430" y="130" font-size="12" fill="#3d4a56">corner_dcc</text>
+  <text x="430" y="148" font-size="12" fill="#3d4a56">= 14.5</text>
+</svg>
+<figcaption>圖 3-1 · true_dcc(r,c) 真值場:模擬實際模組「角落 DCC 偏高」的場曲趨勢(式 3-3)。</figcaption>
+</figure>
+
+<!-- ============================================================ -->
+<h2 id="s4"><span class="no">4</span>參數逐一解析</h2>
+
+<h3>4.1 dacs — 掃描序列(非 Sim 參數,由 config 推導)</h3>
+<p><code>dac_f</code> 是第 f 幀的 VCM 馬達命令值,語意 =「這幀是在此鏡頭位置拍的」。
+推導鏈(SPEC-002 C-1,禁止寫死):</p>
+<div class="eq">span_af = MACRO − INF = 400 → FAR = 220 − 400×0.1 = 180;NEAR = 620 + 400×0.1 = 660<br>step = 480/(N−1) ≈ 53.33 → dacs = [180, 233, 287, 340, 393, 447, 500, 553, 607, 660]</div>
+<p><code>(dac_f − fc)</code> 即該幀離焦量——除以 true_dcc 得視差,正是 DCC 定義的反向運用。
+點數 N = <code>num_positions</code>(5..50,預設 10)已參數化,交叉約束見 §8。</p>
+
+<h3>4.2 focus_center(fc)— 合焦位置 [DAC]</h3>
+<p>disparity 的零交叉點 = 回歸截距 b 的真值(預設 420)。模擬「chart 擺放距離」:
+移動 fc = 模擬 chart 距離改變。滑到 E-F01 邊界(FAR+step, NEAR−step)之外
+(如 640)→ focus 峰值出界中止。</p>
+
+<h3>4.3 center_dcc / corner_dcc — DCC 真值場</h3>
+<p>定義式 (3-3),中央 12.46、角落 14.5(假設模組期望值)。管線還原出的 48 區 DCC
+應逐區等於此場(無雜訊時至 1e-9)——這就是 IT-01 的驗收基準。
+把 center 設為<b>負值</b>(診斷選單「E-E01」)= 模擬 L/R 定義顛倒 → 回歸斜率非正。</p>
+
+<h3>4.4 noise_sigma(σ)— disparity 高斯雜訊 [raw px]</h3>
+<p>逐點獨立 N(0,σ)。與系統精度的關係(SPEC-005 §3a 誤差預算):</p>
+<div class="eq">σ_k/k ≈ σ_d / √S<sub>dd</sub>,√S<sub>dd</sub> = √S<sub>xx</sub>/k ≈ 38.9 raw px(預設 config)<br>→ σ = 0.5(外部驗收上限)→ DCC 波動 ≈ 1.3%;NFR-02(CV&lt;2%)→ σ_d ≤ 0.78</div>
+<p>注意:σ 推不動 err(§6)、也不改 DCC 期望值——它的殺傷力在<b>重複性</b>(CV)。</p>
+
+<h3>4.5 bias — disparity 系統偏差 [raw px]</h3>
+<p>常數偏移:<b>只平移截距 b(Δb = k·bias),完全不動斜率 DCC</b>。
+bias=0.3(驗收上限)→ b 偏移約 3.8 DAC → err 貢獻僅 0.8%。用於驗證管線對
+系統性 disparity 偏移的耐受性(IT-07 蒙地卡羅情境之一)。</p>
+
+<h3>4.6 nl2 / nl3 — 非線性(詳見 §5)</h3>
+<p>nl3(S 型壓縮)是 canonical 主導項;nl2(不對稱)為次要項。正規化到 H 使其語意
+=「掃描端點處的效應比例」:nl3 = 0.2 → 端點視差幅度壓縮 20%。</p>
+
+<h3>4.7 focus_peak_offset — focus 峰值偏移 [DAC](詳見 §6)</h3>
+
+<h3>4.8 half_span(H)— 正規化尺度(內部推導,非滑桿)</h3>
+<p><code>H = (dacs.back − dacs.front)/2</code>,預設 config = 240。
+它讓 (3-1)(3-2) 中的 u/H 在掃描端點恰為 ±1:nl 語意錨定於端點、focus 曲線在端點
+落至峰值 1/e(整條 sweep 十個採樣點都有曲率資訊,四階多項式擬合穩定)。
+<b>沿革</b>:曾寫死 240,已改為由 dacs 動態推導——margin 或 N 改動時語意自動跟隨。</p>
+
+<h3>4.9 null_cells / null_frames — 無效樣本注入</h3>
+<p>指定 (幀, r, c) 輸出 JSON null(= 外部 SAD 品質判定不合格)。GUI 快速鈕固定打
+角落區 (5,7) 前 N 幀:N=2 → 該區有效 8 幀,剔除生效仍 PASS;N≥3 → 有效 7 &lt;
+min_valid_samples(8)→ E-D03 中止。</p>
+
+<h3>4.10 fine_grid — 144×108 細粒度輸出</h3>
+<p>以 pattern block 粒度(32×32 px/block)輸出,行使讀取器 D-5 聚合
+(median / quality 加權,cell 中心歸區、邊界歸左/上)。無雜訊時聚合結果與直接
+8×6 一致(&lt;1e-9,UT-10)。</p>
+
+<h3>4.11 unit / pitch_x / seed</h3>
+<ul class="tight">
+<li><b>unit</b>:出檔前依宣告單位輸出(pd_image_grid 時 ÷16);讀取端是全案唯一入向轉換點
+——UT-03 驗證兩種單位輸入結果 bit-exact 一致。</li>
+<li><b>seed</b>:雜訊確定性之源。固定 seed = 同資料 → 報告 bit-exact(IT-06);
+掃 seed 1..10 = 蒙地卡羅(IT-07)。</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="s5"><span class="no">5</span>非線性:鐘型 vs S 型(圖解)</h2>
+
+<p>視差對離焦的偏離有兩種本質不同的形態,對應 (3-1) 的兩個修正項:</p>
+
+<table class="spec">
+  <tr><th></th><th>nl3 — S 型壓縮(canonical,主導)</th><th>nl2 — 不對稱(次要)</th></tr>
+  <tr><td>數學</td><td class="m">殘差 ∝ −u³(奇函數)</td><td class="m">殘差 ∝ +u²(偶函數)</td></tr>
+  <tr><td>形態</td><td>兩端<b>反向</b>偏離 → S 型;幅度對稱壓縮</td><td>兩端<b>同向</b>偏離 → 鐘型</td></tr>
+  <tr><td>物理來源</td><td>PD 像素角度響應飽和、模糊圈超出相關窗、光瞳裁切</td><td>球差等造成的近端/遠端不對稱</td></tr>
+  <tr><td>對稱性判別</td><td class="m">disp(−u) == −disp(+u)(測試逐 bit 釘死)</td><td class="m">奇對稱必然破壞</td></tr>
+  <tr><td>ΔDCC vs 合焦偏移 Δ</td><td><b>偶函數</b>(±Δ 等效,皆使 DCC 偏高)</td><td><b>線性反對稱</b>(≈ 2·nl2·Δ/H)</td></tr>
+</table>
+
+<figure>
+<svg viewBox="0 0 960 420" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC',sans-serif">
+  <defs><marker id="ax5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#10181f"/></marker></defs>
+  <!-- main plot: disp vs DAC -->
+  <text x="300" y="24" font-size="14" font-weight="800" text-anchor="middle">disparity vs DAC(中央區,k = 12.46)</text>
+  <line x1="60" y1="180" x2="620" y2="180" stroke="#c9d3dc" stroke-width="1"/>
+  <line x1="60" y1="330" x2="630" y2="330" stroke="#10181f" stroke-width="1.6" marker-end="url(#ax5)"/>
+  <line x1="60" y1="330" x2="60" y2="40" stroke="#10181f" stroke-width="1.6" marker-end="url(#ax5)"/>
+  <text x="626" y="348" font-size="12" text-anchor="end">DAC</text>
+  <text x="52" y="36" font-size="12" text-anchor="end">disp [raw px]</text>
+  <text x="60" y="348" font-size="11" fill="#3d4a56" text-anchor="middle">180</text>
+  <text x="340" y="348" font-size="11" fill="#3d4a56" text-anchor="middle">420(fc)</text>
+  <text x="620" y="348" font-size="11" fill="#3d4a56" text-anchor="middle">660</text>
+  <!-- linear: (60,305.2)->(620,54.8), y=180-d*6.5, d=±19.26 -->
+  <line x1="60" y1="305.2" x2="620" y2="54.8" stroke="#5a6672" stroke-width="2" stroke-dasharray="7 5"/>
+  <!-- nl3=0.25 S curve: pts u=-240..240 step60: d=(u/12.46)(1-0.25(u/240)^2)
+       u:-240 d=-14.45 y=273.9 x=60 | -180:-13.35? compute: u/k=-14.446*? let's list:
+       u=-240:(−19.26)(0.75)=−14.45→273.9; u=-180:(−14.45)(1−0.1406)=−12.42→260.7 x=130;
+       u=-120:(−9.63)(0.9375)=−9.03→238.7 x=200; u=-60:(−4.82)(0.9844)=−4.74→210.8 x=270;
+       u=0:0→180 x=340; u=60:4.74→149.2 x=410; u=120:9.03→121.3 x=480; u=180:12.42→99.3 x=550; u=240:14.45→86.1 x=620 -->
+  <path d="M60,273.9 C90,268 110,264 130,260.7 S170,247 200,238.7 S240,222 270,210.8 S310,192 340,180 S370,161 410,149.2 S450,131 480,121.3 S520,106 550,99.3 S600,90 620,86.1"
+        fill="none" stroke="#0b5cad" stroke-width="2.6"/>
+  <!-- nl2=0.15 bell-bias curve: d=(u/12.46)(1+0.15u/240):
+       u=-240:(−19.26)(0.85)=−16.37→286.4 x=60; u=-120:(−9.63)(0.925)=−8.91→237.9 x=200;
+       u=0:0→180; u=120:(9.63)(1.075)=10.35→112.7 x=480; u=240:(19.26)(1.15)=22.15→36.0 x=620 -->
+  <path d="M60,286.4 Q130,262 200,237.9 Q270,209 340,180 Q410,147 480,112.7 Q550,75 620,36.0"
+        fill="none" stroke="#8a5a00" stroke-width="2.2" stroke-dasharray="2 3"/>
+  <text x="633" y="58" font-size="12" fill="#5a6672">線性</text>
+  <text x="633" y="90" font-size="12" font-weight="700" fill="#0b5cad">nl3=0.25(S)</text>
+  <text x="633" y="38" font-size="12" font-weight="700" fill="#8a5a00">nl2=0.15</text>
+  <!-- residual panels -->
+  <text x="812" y="24" font-size="13" font-weight="800" text-anchor="middle">殘差(對線性)</text>
+  <!-- nl3 residual: -(u/k)*0.25(u/H)^2 → odd, at ±240: ∓... d_res(+240)=-4.81, (-240)=+4.81 -->
+  <line x1="710" y1="100" x2="930" y2="100" stroke="#c9d3dc"/>
+  <path d="M710,72 Q765,92 820,100 Q875,108 930,128" fill="none" stroke="#0b5cad" stroke-width="2.4"/>
+  <text x="820" y="52" font-size="12" fill="#0b5cad" font-weight="700" text-anchor="middle">nl3:∝ −u³(奇)兩端反向</text>
+  <text x="712" y="146" font-size="11" fill="#3d4a56">−u ←  0  → +u</text>
+  <!-- nl2 residual: +(u/k)*0.15(u/H) = 0.15u²/(kH) even, both up -->
+  <line x1="710" y1="270" x2="930" y2="270" stroke="#c9d3dc"/>
+  <path d="M710,232 Q765,262 820,270 Q875,262 930,232" fill="none" stroke="#8a5a00" stroke-width="2.4"/>
+  <text x="820" y="214" font-size="12" fill="#8a5a00" font-weight="700" text-anchor="middle">nl2:∝ +u²(偶)兩端同向</text>
+  <text x="712" y="316" font-size="11" fill="#3d4a56">−u ←  0  → +u</text>
+  <text x="300" y="392" font-size="12.5" fill="#10181f" text-anchor="middle" font-weight="700">
+    判讀訣竅:實模組 --scan 的 ΔDCC 曲線——偶對稱 → nl3 主導;線性 → nl2 主導</text>
+</svg>
+<figcaption>圖 5-1 · 左:三種模型的視差-DAC 軌跡(S 型於兩端壓縮);右:殘差形態一眼區分奇/偶。</figcaption>
+</figure>
+
+<div class="callout align"><span class="t">沿革註記(2026-07-13)</span>
+初版僅有偶次 nl(當時觀察到兩端同向飄移),經工程師比對校正手冊圖示(S 型)提出質疑,
+確認偶次項只涵蓋不對稱效應、canonical 主導應為奇次壓縮 → 升級為 nl2+nl3 雙項模型,
+並以「奇對稱逐 bit 判別式」測試釘死兩者不可混淆。</div>
+
+<!-- ============================================================ -->
+<h2 id="s6"><span class="no">6</span>err 機制與 focus 峰值偏移</h2>
+
+<p>Phase F 的判定量 <code>err = |b − focus_peak| / span</code> 度量「兩條獨立合焦估計」的分歧。
+Sim 中兩者的真值分別為:</p>
+<div class="eq">回歸截距 b → fc(disparity 零交叉點)      focus 峰值 → fc + peak_offset<br>∴ err = |peak_offset| / span(精確關係;offset 96 → err = 96/480 = 0.20 恰踩規格線)</div>
+
+<figure>
+<svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC',sans-serif">
+  <line x1="50" y1="190" x2="680" y2="190" stroke="#10181f" stroke-width="1.5"/>
+  <!-- gaussian at 420 (solid green) and 500 (dashed) ; x map: dac->50+(dac-180)*1.25 → 420→350, 500→450 -->
+  <path d="M60,186 Q205,40 350,34 Q495,40 640,186" fill="none" stroke="#0a6e35" stroke-width="2.4"/>
+  <path d="M160,186 Q305,40 450,34 Q595,40 690,150" fill="none" stroke="#8a5a00" stroke-width="2.2" stroke-dasharray="6 4"/>
+  <line x1="350" y1="190" x2="350" y2="30" stroke="#0b5cad" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <line x1="450" y1="190" x2="450" y2="30" stroke="#a01818" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <text x="350" y="212" font-size="12" text-anchor="middle" fill="#0b5cad" font-weight="700">b = fc(420)</text>
+  <text x="450" y="212" font-size="12" text-anchor="middle" fill="#a01818" font-weight="700">peak = fc+offset</text>
+  <line x1="350" y1="48" x2="450" y2="48" stroke="#a01818" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="400" y="40" font-size="12.5" text-anchor="middle" fill="#a01818" font-weight="700">|b − peak| = offset</text>
+  <text x="120" y="60" font-size="12" fill="#0a6e35" font-weight="700">focus 曲線(offset=0)</text>
+  <text x="560" y="70" font-size="12" fill="#8a5a00" font-weight="700">offset=80 之曲線</text>
+  <text x="360" y="234" font-size="12" text-anchor="middle" fill="#3d4a56">err = offset/span;物理對應:場曲、chart 傾斜、PD 合焦 vs 對比合焦分歧</text>
+</svg>
+<figcaption>圖 6-1 · err 的幾何:focus 峰值偏移使兩條獨立合焦估計系統性分離。</figcaption>
+</figure>
+
+<div class="callout warnbox"><span class="t">常見疑問:「為什麼雜訊 σ 拉滿也很難讓 err 變紅?」</span>
+這不是 bug,是設計。雜訊打到截距的力道經 √n 稀釋:
+<span class="mono">σ_b ≈ k·σ/√n → σ=2 時 σ_b ≈ 8 DAC → err 波動僅 ≈ 1.7%,48 區最差 ≈ 4% ≪ tolerance 0.20</span>。
+err 的職責是抓<b>系統性分歧</b>(用 peak_offset 演練),隨機雜訊的殺傷力由
+NFR-02(重複性 CV)把關——兩個機制各司其職。</div>
+
+<!-- ============================================================ -->
+<h2 id="s7"><span class="no">7</span>演練情境對照表</h2>
+
+<div class="tablewrap">
+<table class="spec">
+  <tr><th style="width:26%">操作(Sim 工作台 / 診斷選單)</th><th style="width:20%" >觸發機制</th><th>預期現象</th></tr>
+  <tr><td>null 幀數 ≥ 3(角落區)</td><td class="m">E-D03(中止)</td><td>有效樣本 7 &lt; 8;abort_dump 落盤</td></tr>
+  <tr><td>center/corner_dcc 設負值</td><td class="m">E-E01(中止)</td><td>斜率非正 → 提示檢查 LEFT/RIGHT</td></tr>
+  <tr><td>合焦位置 640(&gt; NEAR−step ≈ 607)</td><td class="m">E-F01(中止)</td><td>focus 峰值出界;訊息含有效範圍</td></tr>
+  <tr><td>focus 峰值偏移 ±96 以上</td><td class="m">E-F02(判定 FAIL)</td><td>err ≥ 0.20;err map 整片轉紅;報告 errors[] 記 E-F02</td></tr>
+  <tr><td>σ 拉大(如 1.5)</td><td>r² 警告 / CV</td><td>r² &lt; 0.98 警告湧入 log;DCC 重複性變差(err 幾乎不動)</td></tr>
+  <tr><td>nl3 = 0.2(S 壓縮)</td><td>OQ#3 靈敏度</td><td>回歸散點呈 S 型;掃描 ΔDCC 呈對稱偶函數</td></tr>
+  <tr><td>nl2 = 0.1(不對稱)</td><td>OQ#3 靈敏度</td><td>殘差鐘型;掃描 ΔDCC 隨偏移線性(≈2·nl2·Δ/H)</td></tr>
+  <tr><td>144×108 細粒度開關</td><td>D-5 聚合</td><td>結果與 8×6 一致(無雜訊);聚合方法可切 median/加權</td></tr>
+  <tr><td>unit 切 pd_image_grid</td><td>單位契約</td><td>結果 bit-exact 不變(讀取端 ×16);總覽雙單位比值 = 16</td></tr>
+</table>
+</div>
+<p>E-A01/C01/D01/D02/G01 屬 config/格式層錯誤,由測試套件覆蓋(UT-01/02/08、config 負向測試)。</p>
+
+<!-- ============================================================ -->
+<h2 id="s8"><span class="no">8</span>相關規格修正沿革</h2>
+
+<table class="spec">
+  <tr><th style="width:14%">日期</th><th style="width:30%">修正</th><th>要點</th></tr>
+  <tr><td class="m">07-11</td><td>合成真值對齊(SPEC-005 §2 / UT-05/06)</td><td>舊準則 b=421、峰值 427 與生成式矛盾;修正為 b = peak = 420,非零 err 由注入建構</td></tr>
+  <tr><td class="m">07-11</td><td>focus 必填(SPEC-004 §3a)</td><td>像素處理外部化後 Phase F 的 fv 無法自算 → 序列格式列必填;Sim 隨 data 一併生成</td></tr>
+  <tr><td class="m">07-12</td><td>非線性注入 nl(OQ#3 工具)</td><td>理想線性下 DCC 對合焦偏移不敏感(實測 0.0000%)→ 增設 nl 使掃描有物理意義</td></tr>
+  <tr><td class="m">07-13</td><td>peak_offset(err 演練旋鈕)</td><td>Sim 原將 b 與 peak 綁同源致 err 結構性 ≈ 0;解耦後 err = |offset|/span 精確成立</td></tr>
+  <tr><td class="m">07-13</td><td>half_span 動態化</td><td>240 改由 dacs 推導 = (NEAR−FAR)/2;margin/N 變動時 nl 與 focus 寬度語意自動跟隨</td></tr>
+  <tr><td class="m">07-13</td><td>num_positions 參數化(SPEC-001/003/004)</td><td>固定 10 → 5..50;交叉約束載入即檢核:min_valid_samples ≤ N、poly_order &lt; N、2×margin_steps &lt; N−1</td></tr>
+  <tr><td class="m">07-13</td><td>S 型非線性(nl2+nl3 雙項)</td><td>工程師查核:手冊軌跡為 S 型 → 補奇次壓縮項為主導;奇對稱判別式測試釘死</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s9"><span class="no">9</span>參數快速參考卡</h2>
+
+<div class="tablewrap">
+<table class="spec">
+  <tr><th style="width:17%">參數</th><th style="width:9%" class="c">單位</th><th style="width:14%" class="c">範圍(預設)</th><th>一句話</th></tr>
+  <tr><td class="m">noise_sigma</td><td class="c">raw px</td><td class="c">0..2(0)</td><td>disparity 高斯雜訊;打 CV 不打 err;驗收上限 0.5</td></tr>
+  <tr><td class="m">bias</td><td class="c">raw px</td><td class="c">−1..1(0)</td><td>常數偏移;只動截距 b,不動 DCC;驗收上限 0.3</td></tr>
+  <tr><td class="m">seed</td><td class="c">—</td><td class="c">≥0(0)</td><td>雜訊種子;同 seed 同資料(bit-exact)</td></tr>
+  <tr><td class="m">focus_center</td><td class="c">DAC</td><td class="c">180..660(420)</td><td>合焦位置(= chart 距離);出 (FAR+step, NEAR−step) → E-F01</td></tr>
+  <tr><td class="m">center/corner_dcc</td><td class="c">DAC/px</td><td class="c">8..20(12.46/14.5)</td><td>DCC 真值場;負值 = 模擬 L/R 顛倒(E-E01)</td></tr>
+  <tr><td class="m">s_curve(nl3)</td><td class="c">—</td><td class="c">0..0.3(0)</td><td>S 型壓縮(canonical);端點幅度壓縮 nl3×100%;ΔDCC 偶對稱</td></tr>
+  <tr><td class="m">nonlinearity(nl2)</td><td class="c">—</td><td class="c">0..0.2(0)</td><td>不對稱項(鐘型殘差);ΔDCC ≈ 2·nl2·Δ/H 線性</td></tr>
+  <tr><td class="m">focus_peak_offset</td><td class="c">DAC</td><td class="c">−120..120(0)</td><td>err 演練:err = |offset|/span;±96 踩 tolerance 線</td></tr>
+  <tr><td class="m">null_frames</td><td class="c">幀</td><td class="c">0..5(0)</td><td>角落區 (5,7) 前 N 幀無效;≥3 → E-D03</td></tr>
+  <tr><td class="m">fine_grid</td><td class="c">—</td><td class="c">off/on</td><td>144×108 細粒度輸出 → 行使 D-5 聚合</td></tr>
+  <tr><td class="m">unit / pitch_x</td><td class="c">—</td><td class="c">隨 config</td><td>出檔單位宣告;讀取端唯一入向轉換點(×16)</td></tr>
+  <tr><td class="m">(dacs / H)</td><td class="c">DAC</td><td class="c">推導值</td><td>掃描序列與半幅——由 config 公式推導,禁止寫死</td></tr>
+</table>
+</div>
+
+<footer style="margin-top:60px;border-top:2px solid var(--line);padding-top:12px;color:var(--sub);font-size:12.5px;">
+DCC_calibration · Sim 工作台完全解析 · 對應 M1(2026-07-13)· 規範性內容以 specs/ 為權威;
+本文件與 <code>docs/開發紀錄_M0-M1.md</code>、M0 階段報告互補。
+</footer>
+
+</div>
+</body>
+</html>
