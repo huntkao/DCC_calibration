@@ -3,6 +3,7 @@
 > rev 2026-07-11:修正 §3 ratio_check 公式;`disparity_unit` 拆分為 `input_/output_disparity_unit`;新增 §3a disparity 序列輸入格式(離線前期之主要輸入,含 focus value);schema 補齊各 Phase 可調參數;exposure 參數移列外部模組參考。
 > rev 2026-07-11(2):§3a 支援 SAD 細粒度輸出與聚合設定(median/加權平均,關閉開放問題 #5);RAW 改列唯讀選配輸入(UI 底圖)。
 > rev 2026-07-11(3):margin 預設定案 0.1;連動數值一律以公式參數化表述,範例值僅為預設 config 之推導示例。
+> rev 2026-07-13:num_positions 由固定 10 改為可設定(5..50,預設 10),並明訂與 min_valid_samples / focus.poly_order / peak_margin_steps 之交叉約束(loader 於載入即檢核,E-A01)。
 
 ## 1. 檔案佈局
 
@@ -30,7 +31,7 @@ data/output/<module_id>/report.json / report.md / block.bin
 | vcm.af_cal_inf/macro | int | inf<macro,皆在 dac 範圍 |
 | vcm.settle_time_ms | int | 預設 30 |
 | dcc.far_margin/near_margin | float | 0..0.2,**預設 0.1**(sweep 端點由公式推導,見 FR-03;不得於規格/程式中寫死端點值) |
-| dcc.num_positions | int | 固定 10(v1) |
+| dcc.num_positions | int | 5..50,**預設 10**;連動約束:min_valid_samples ≤ 本值、focus.poly_order < 本值、2×peak_margin_steps < 本值−1 |
 | dcc.grid_w/grid_h | int | 8 / 6(v1) |
 | dcc.q_format | int | 4..8,預設 6 |
 | dcc.tolerance | float | metal-shield 預設 0.20 |

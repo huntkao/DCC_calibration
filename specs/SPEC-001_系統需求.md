@@ -15,7 +15,7 @@
 - **FR-02** 工具須驗證前置條件並記錄:AF 校正值存在且 `INF < MACRO`;gain map 可載入;PD offsets 依 x 遞增;orientation 為 canonical。任一不符 → 中止,錯誤碼 E-A0x。
 
 ### 1.2 掃描規劃(Phase C-1)
-- **FR-03** 依公式計算 sweep:`FAR = INF − span×far_margin`、`NEAR = MACRO + span×near_margin`、10 點等距取整。結果超出 DAC 實體範圍 → E-C01。
+- **FR-03** 依公式計算 sweep:`FAR = INF − span×far_margin`、`NEAR = MACRO + span×near_margin`、`num_positions` 點(預設 10)等距取整。結果超出 DAC 實體範圍 → E-C01。
 - **FR-04** sweep 方向固定 FAR→NEAR 單向(磁滯對策),不可由外部參數反轉。
 
 ### 1.3 擷取協調(Phase C-2)**[M2/外部]**

@@ -98,10 +98,16 @@ void draw_config_panel(GuiState& s) {
     ch |= ImGui::InputInt("AF_CAL_MACRO", &s.cfg.vcm.af_cal_macro);
     ch |= slider_d("far_margin", &s.cfg.sweep.far_margin, 0.0f, 0.2f, "%.3f");
     ch |= slider_d("near_margin", &s.cfg.sweep.near_margin, 0.0f, 0.2f, "%.3f");
+    if (ImGui::SliderInt("num_positions", &s.cfg.sweep.num_positions, 5, 21)) {
+      ch = true;
+      // 連動:樣本門檻不可超過掃描點數(loader 亦會攔,這裡先行夾住利於 UX)。
+      s.cfg.min_valid_samples = std::min(s.cfg.min_valid_samples, s.cfg.sweep.num_positions);
+    }
   }
   if (ImGui::CollapsingHeader("判定 / 品質", ImGuiTreeNodeFlags_DefaultOpen)) {
     ch |= slider_d("tolerance", &s.cfg.tolerance, 0.05f, 0.30f, "%.3f");
-    ch |= ImGui::SliderInt("min_valid_samples", &s.cfg.min_valid_samples, 6, 10);
+    ch |= ImGui::SliderInt("min_valid_samples", &s.cfg.min_valid_samples, 2,
+                           s.cfg.sweep.num_positions);
     ch |= slider_d("r2_warn", &s.cfg.r2_warn, 0.90f, 1.00f, "%.3f");
     ch |= slider_d("smooth_limit", &s.cfg.smooth_limit, 0.05f, 0.50f, "%.3f");
   }

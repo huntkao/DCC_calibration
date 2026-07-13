@@ -128,6 +128,28 @@ TEST_CASE("OQ#3 靈敏度:非線性 nl=0.05 下,合焦偏移 ±40 DAC 使中央 
   REQUIRE(std::fabs(100.0 * (m_lin - m_lin0) / m_lin0) < 0.1);
 }
 
+TEST_CASE("num_positions=12:sweep/synth/管線全鏈連動,真值還原不變", "[nconfig]") {
+  auto jcfg = nlohmann::json::parse(dcc::io::default_config_json());
+  jcfg["dcc"]["num_positions"] = 12;
+  const auto cfg = dcc::io::load_config(jcfg.dump());
+
+  const auto dacs = dcc::sweep::plan(cfg.vcm, cfg.sweep);
+  REQUIRE(dacs.size() == 12);
+  REQUIRE(dacs.front() == 180);  // 端點公式不受點數影響
+  REQUIRE(dacs.back() == 660);
+
+  auto spec = base_spec(cfg);          // spec.dacs 由 plan 供給 → 12 幀
+  spec.dacs = dacs;
+  spec.noise_sigma = 0.3;
+  spec.seed = 5;
+  const auto res = dcc::app::run(cfg, generate(spec), kFlatGain, kFlatGain);
+  REQUIRE(res.pass);
+  REQUIRE(res.seq.disp.size() == 12);  // 幀數全鏈貫通
+  REQUIRE(res.regions[0].n_valid == 12);
+  const double truth = true_dcc(0, 0, 8, 6, 12.46, 14.5);
+  REQUIRE(std::fabs(res.regions[0].dcc_raw_px - truth) / truth < 0.03);
+}
+
 TEST_CASE("focus_peak_offset:err == |offset|/span,tolerance 判定正確(FR-14 演練)",
           "[fr14][sensitivity]") {
   const auto cfg = app_cfg();

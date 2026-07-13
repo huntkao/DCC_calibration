@@ -66,7 +66,7 @@ NvmIF:
 
 ```
 sweep.plan(vcm, dcc) -> list[int]
-  post: len==10, 遞增, 端點==FAR/NEAR(取整後), 全在 DAC 範圍
+  post: len==num_positions(預設 10), 遞增, 端點==FAR/NEAR(取整後), 全在 DAC 範圍
 
 disparity_io.load(path, cfg) -> (disp[10,6,8], quality[10,6,8], fv[10,6,8], dacs[10])
   out : disp 一律 raw_pixel(讀取端已依 input_disparity_unit 轉換);無效樣本 NaN;

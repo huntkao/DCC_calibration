@@ -7,6 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "dcc_core/error.hpp"
 #include "dcc_core/units.hpp"
 
 namespace dcc::sim {
@@ -23,6 +24,14 @@ double true_dcc(int r, int c, int grid_w, int grid_h, double center_dcc, double 
 
 std::string generate(const SynthSpec& s) {
   using nlohmann::json;
+  if (s.dacs.size() < 2)
+    throw DccError(ErrorCode::E_A01, "SynthSpec.dacs 須至少 2 點(應由 sweep::plan 供給)");
+
+  // 正規化尺度 = sweep 半幅(隨 config 之 margin/num_positions 連動,禁止寫死):
+  //   非線性項:(dac−fc)/half_span 於掃描端點 ≈ ±1 → nl 語意 = 端點斜率偏離比例
+  //   focus 寬度:曲線於掃描端點落至峰值 1/e
+  const double half_span = 0.5 * static_cast<double>(s.dacs.back() - s.dacs.front());
+
   std::mt19937 rng(s.seed);
   std::normal_distribution<double> gauss(0.0, s.noise_sigma);
 
@@ -49,9 +58,9 @@ std::string generate(const SynthSpec& s) {
     for (int r = 0; r < s.grid_h; ++r) {
       json drow = json::array(), frow = json::array(), qrow = json::array();
       for (int c = 0; c < s.grid_w; ++c) {
-        // focus:以 focus_center + focus_peak_offset 為峰之高斯(全區同型);
+        // focus:以 (focus_center + focus_peak_offset) 為峰之高斯(全區同型);
         // offset ≠ 0 時 b 與 peak 系統性分歧 → 演練 err/tolerance 機制。
-        const double t = (dac - s.focus_center - s.focus_peak_offset) / 240.0;
+        const double t = (dac - (s.focus_center + s.focus_peak_offset)) / half_span;
         frow.push_back(1000.0 * std::exp(-t * t));
         if (s.with_quality) qrow.push_back(1.0);
 
@@ -61,7 +70,8 @@ std::string generate(const SynthSpec& s) {
         }
         const double k = true_dcc(r, c, s.grid_w, s.grid_h, s.center_dcc, s.corner_dcc);
         double d = (dac - s.focus_center) / k;
-        if (s.nonlinearity != 0.0) d *= 1.0 + s.nonlinearity * (dac - s.focus_center) / 240.0;
+        if (s.nonlinearity != 0.0)
+          d *= 1.0 + s.nonlinearity * (dac - s.focus_center) / half_span;
         d += s.bias;
         if (s.noise_sigma > 0.0) d += gauss(rng);
         if (s.unit == "pd_image_grid") d = units::raw_px_to_pd_grid(d, s.pitch_x);

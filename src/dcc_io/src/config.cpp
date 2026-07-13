@@ -117,8 +117,8 @@ AppConfig load_config(const std::string& json_text) {
     throw DccError(ErrorCode::E_A01, "tolerance 須在 (0,1)");
   if (c.grid_w != 8 || c.grid_h != 6)
     throw DccError(ErrorCode::E_A01, "grid 固定 8×6(v1)");
-  if (c.sweep.num_positions != 10)
-    throw DccError(ErrorCode::E_A01, "num_positions 固定 10(v1)");
+  if (c.sweep.num_positions < 5 || c.sweep.num_positions > 50)
+    throw DccError(ErrorCode::E_A01, "num_positions 須在 5..50(預設 10)");
 
   // ── focus / aggregation(選填,含預設)────────────────────────────────
   if (j.contains("focus")) {
@@ -132,6 +132,21 @@ AppConfig load_config(const std::string& json_text) {
     else throw DccError(ErrorCode::E_A01, "aggregation.method 非法:" + m);
     c.min_valid_ratio = j["aggregation"].value("min_valid_ratio", 0.5);
   }
+
+  // ── 跨欄位關聯性檢核(num_positions 參數化後之連動約束)──────────────
+  // 回歸樣本門檻不可超過掃描點數,否則所有區必 E-D03。
+  if (c.min_valid_samples < 2 || c.min_valid_samples > c.sweep.num_positions)
+    throw DccError(ErrorCode::E_A01,
+                   "min_valid_samples(" + std::to_string(c.min_valid_samples) +
+                       ")須在 2..num_positions(" + std::to_string(c.sweep.num_positions) + ")");
+  // focus 擬合需要多於階數之樣本點。
+  if (c.focus_poly_order < 2 || c.focus_poly_order >= c.sweep.num_positions)
+    throw DccError(ErrorCode::E_A01,
+                   "focus.poly_order 須在 2..num_positions−1(樣本數須多於階數)");
+  // E-F01 有效範圍 (FAR+m·step, NEAR−m·step) 須非空:2m < num_positions−1。
+  if (c.peak_margin_steps < 1 || 2 * c.peak_margin_steps >= c.sweep.num_positions - 1)
+    throw DccError(ErrorCode::E_A01,
+                   "focus.peak_margin_steps 非法:須 ≥1 且 2×steps < num_positions−1");
 
   c.snapshot = j.dump();  // 正規化(鍵排序)後快照
   c.hash = fnv1a_hex(c.snapshot);

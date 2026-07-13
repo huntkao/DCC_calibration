@@ -45,6 +45,28 @@ TEST_CASE("config:缺必填欄位 / 非法值 → E-A01(FR-01/02)", "[config][er
   });
 }
 
+TEST_CASE("config:num_positions 交叉約束(與 min_valid_samples/poly_order/margin_steps 連動)",
+          "[config][error]") {
+  // 樣本門檻 > 掃描點數 → 必然全區 E-D03,載入即拒絕。
+  expect_a01([](nlohmann::json& j) { j["dcc"]["num_positions"] = 6; });  // mvs 預設 8 > 6
+  // 擬合階數 >= 點數 → 無法擬合。
+  expect_a01([](nlohmann::json& j) {
+    j["dcc"]["num_positions"] = 5;
+    j["dcc"]["min_valid_samples"] = 4;
+    j["focus"]["poly_order"] = 5;
+  });
+  // E-F01 有效範圍為空(2×steps >= N−1)。
+  expect_a01([](nlohmann::json& j) {
+    j["dcc"]["num_positions"] = 5;
+    j["dcc"]["min_valid_samples"] = 4;
+    j["focus"]["poly_order"] = 3;
+    j["focus"]["peak_margin_steps"] = 2;
+  });
+  // 範圍外。
+  expect_a01([](nlohmann::json& j) { j["dcc"]["num_positions"] = 4; });
+  expect_a01([](nlohmann::json& j) { j["dcc"]["num_positions"] = 60; });
+}
+
 TEST_CASE("config:serialize → load 閉環(UI 編輯值經同一驗證器,hash 更新)",
           "[config][roundtrip]") {
   auto c = load_config(dcc::io::default_config_json());
