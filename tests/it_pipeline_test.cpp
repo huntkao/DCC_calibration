@@ -128,6 +128,45 @@ TEST_CASE("OQ#3 靈敏度:非線性 nl=0.05 下,合焦偏移 ±40 DAC 使中央 
   REQUIRE(std::fabs(100.0 * (m_lin - m_lin0) / m_lin0) < 0.1);
 }
 
+TEST_CASE("S 型非線性(nl3):視差對離焦為奇函數;不對稱項(nl2)則否", "[scurve]") {
+  const auto cfg = app_cfg();
+  // 預設 dacs 對 420 對稱(180+660=840)→ 幀 f 與幀 9−f 之離焦互為相反數。
+  const auto disp_at = [&](double nl2, double nl3, size_t frame) {
+    auto spec = base_spec(cfg);
+    spec.nonlinearity = nl2;
+    spec.s_curve = nl3;
+    const auto j = nlohmann::json::parse(generate(spec));
+    return j["data"][frame][0][0].get<double>();
+  };
+  // 純 S 型:disp(−u) == −disp(+u)(逐 bit 奇對稱)。
+  for (size_t f = 0; f < 5; ++f)
+    REQUIRE(disp_at(0.0, 0.2, f) == -disp_at(0.0, 0.2, 9 - f));
+  // 純不對稱項:奇對稱必然破壞(鐘型殘差,兩端同向)。
+  REQUIRE(disp_at(0.1, 0.0, 0) != -disp_at(0.1, 0.0, 9));
+  // S 型端點壓縮:|disp| 小於線性真值(壓縮 nl3×100%)。
+  const double lin = disp_at(0.0, 0.0, 0);
+  REQUIRE(std::fabs(disp_at(0.0, 0.2, 0)) < std::fabs(lin));
+  REQUIRE(std::fabs(disp_at(0.0, 0.2, 0) / lin - 0.8) < 1e-9);  // 端點 un≈1 → ×(1−0.2)
+}
+
+TEST_CASE("S 型非線性下 ΔDCC 對合焦偏移為對稱偶函數(vs nl2 之線性反對稱)", "[scurve][oq3]") {
+  const auto cfg = app_cfg();
+  const std::vector<double> flat(221, 1.0);
+  const size_t centers[4] = {19, 20, 27, 28};
+  const auto central = [&](double nl3, double offset) {
+    auto spec = base_spec(cfg);
+    spec.s_curve = nl3;
+    spec.focus_center = 420.0 + offset;
+    const auto res = dcc::app::run(cfg, generate(spec), flat, flat);
+    double m = 0.0;
+    for (size_t i : centers) m += res.regions[i].dcc_raw_px;
+    return m / 4.0;
+  };
+  const double d0 = central(0.1, 0.0), dp = central(0.1, +40.0), dm = central(0.1, -40.0);
+  REQUIRE(dp > d0);                                  // 壓縮 → 偏移使 DCC 偏高
+  REQUIRE(std::fabs(dp - dm) / d0 < 0.002);          // ±40 對稱(偶函數)
+}
+
 TEST_CASE("num_positions=12:sweep/synth/管線全鏈連動,真值還原不變", "[nconfig]") {
   auto jcfg = nlohmann::json::parse(dcc::io::default_config_json());
   jcfg["dcc"]["num_positions"] = 12;

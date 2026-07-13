@@ -69,9 +69,11 @@ std::string generate(const SynthSpec& s) {
           continue;
         }
         const double k = true_dcc(r, c, s.grid_w, s.grid_h, s.center_dcc, s.corner_dcc);
+        const double un = (dac - s.focus_center) / half_span;  // 正規化離焦(端點 ≈ ±1)
         double d = (dac - s.focus_center) / k;
-        if (s.nonlinearity != 0.0)
-          d *= 1.0 + s.nonlinearity * (dac - s.focus_center) / half_span;
+        // nl2 = 偶次不對稱(鐘型殘差)、nl3 = 奇次 S 型壓縮(canonical)。
+        if (s.nonlinearity != 0.0 || s.s_curve != 0.0)
+          d *= 1.0 + s.nonlinearity * un - s.s_curve * un * un;
         d += s.bias;
         if (s.noise_sigma > 0.0) d += gauss(rng);
         if (s.unit == "pd_image_grid") d = units::raw_px_to_pd_grid(d, s.pitch_x);

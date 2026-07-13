@@ -126,6 +126,7 @@ bool GuiState::save_session(const std::string& path) {
     s["center_dcc"] = spec.center_dcc;
     s["corner_dcc"] = spec.corner_dcc;
     s["nonlinearity"] = spec.nonlinearity;
+    s["s_curve"] = spec.s_curve;
     s["focus_peak_offset"] = spec.focus_peak_offset;
     s["fine_grid"] = fine_grid;
     s["null_frames"] = null_frames;
@@ -156,6 +157,7 @@ bool GuiState::load_session(const std::string& path) {
     spec.center_dcc = s.value("center_dcc", 12.46);
     spec.corner_dcc = s.value("corner_dcc", 14.5);
     spec.nonlinearity = s.value("nonlinearity", 0.0);
+    spec.s_curve = s.value("s_curve", 0.0);
     spec.focus_peak_offset = s.value("focus_peak_offset", 0.0);
     fine_grid = s.value("fine_grid", false);
     null_frames = s.value("null_frames", 0);

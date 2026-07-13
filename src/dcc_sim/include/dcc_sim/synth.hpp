@@ -20,10 +20,13 @@ struct SynthSpec {
   double corner_dcc = 14.5;           // 角落真值(線性升)
   double noise_sigma = 0.0;           // disparity 高斯雜訊 σ [raw_px]
   double bias = 0.0;                  // disparity 系統偏差 [raw_px]
-  double nonlinearity = 0.0;          // 二階非線性:disp ×= (1 + nl·(dac−fc)/half_span);
-                                      // half_span = sweep 半幅(由 dacs 動態推導,預設 config = 240)
-                                      // → nl 語意 = 掃描端點處之斜率偏離比例;
-                                      // 0 = 理想線性(此時 DCC 對合焦偏移不敏感)
+  // 非線性注入:disp = (u/k)·(1 + nl2·(u/H) − nl3·(u/H)²),u = dac−fc,
+  // H = sweep 半幅(由 dacs 動態推導,預設 config = 240)。
+  double nonlinearity = 0.0;          // nl2:偶次「不對稱」項(球差等造成近/遠端不對稱;
+                                      //      殘差 ∝ u²,兩端同向偏移,鐘型)
+  double s_curve = 0.0;               // nl3:奇次「S 型壓縮」項(canonical:PD 角度響應飽和、
+                                      //      模糊圈超出相關窗;殘差 ∝ −u³,兩端反向,
+                                      //      正值 = 端點視差幅度壓縮 nl3×100%)
   double focus_peak_offset = 0.0;     // focus 峰值相對 disparity 合焦點之系統性偏移 [DAC]
                                       // (模擬場曲/chart 傾斜/PD vs 對比合焦分歧;
                                       //  err = |offset|/span,offset 96 → err 0.20 踩線)

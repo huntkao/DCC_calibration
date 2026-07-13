@@ -60,7 +60,8 @@ void draw_sim_panel(GuiState& s) {
   ch |= slider_d("合焦位置 [DAC]", &s.spec.focus_center, 180.0f, 660.0f, "%.0f");
   ch |= slider_d("中央 DCC 真值", &s.spec.center_dcc, 8.0f, 20.0f);
   ch |= slider_d("角落 DCC 真值", &s.spec.corner_dcc, 8.0f, 20.0f);
-  ch |= slider_d("非線性 nl(視差二階項)", &s.spec.nonlinearity, 0.0f, 0.2f, "%.3f");
+  ch |= slider_d("非線性 nl3(S 型壓縮,canonical)", &s.spec.s_curve, 0.0f, 0.3f, "%.3f");
+  ch |= slider_d("非線性 nl2(不對稱,鐘型)", &s.spec.nonlinearity, 0.0f, 0.2f, "%.3f");
   ch |= slider_d("focus 峰值偏移 [DAC]", &s.spec.focus_peak_offset, -120.0f, 120.0f, "%.0f");
   ImGui::SameLine();
   ImGui::TextDisabled("(err 演練:±96 → err 0.20 踩線)");
@@ -502,9 +503,9 @@ void draw_raw_view(GuiState& s) {
 void draw_scan(GuiState& s) {
   ImGui::Begin("靈敏度掃描");
   ImGui::TextWrapped("開放問題 #3:chart 距離(→ 合焦位置)偏移對 DCC 的靈敏度。"
-                     "沿用 Sim 工作台目前參數(σ/bias/nl/seed),僅平移合焦位置。"
-                     "注意:nl=0(理想線性)時 DCC 理論上不受偏移影響,"
-                     "請先於 Sim 工作台設定非線性 nl。");
+                     "沿用 Sim 工作台目前參數(σ/bias/nl2/nl3/seed),僅平移合焦位置。"
+                     "注意:理想線性(nl2=nl3=0)時 DCC 不受偏移影響;"
+                     "nl2(不對稱)→ ΔDCC 隨偏移線性、nl3(S 壓縮)→ ΔDCC 對稱偶函數。");
   ImGui::PushItemWidth(190.0f);
   float range = static_cast<float>(s.scan_range);
   if (ImGui::SliderFloat("掃描範圍 ±[DAC]", &range, 10.0f, 200.0f, "%.0f"))
