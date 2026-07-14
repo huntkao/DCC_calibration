@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>「focus 曲線與峰值」面板 — 來源鏈與參數對應圖解</title>
+<style>
+  :root{
+    --ink:#10181f; --sub:#3d4a56; --line:#c9d3dc; --line-soft:#e2e8ee;
+    --acc:#0b5cad; --acc-bg:#eef5fc; --ok:#0a6e35; --warn:#8a5a00; --warn-bg:#fdf6e3;
+    --ext-bg:#f4f6f8; --bad:#a01818; --bad-bg:#fbeeee;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;color:var(--ink);background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei","Segoe UI",sans-serif;
+    font-size:15px;line-height:1.75;}
+  .page{max-width:1020px;margin:0 auto;padding:0 28px 80px;}
+  header.rep{border-bottom:3px solid var(--ink);padding:38px 0 18px;margin-bottom:24px;}
+  header.rep .kicker{font-size:13px;letter-spacing:.18em;color:var(--acc);font-weight:700;}
+  header.rep h1{font-size:26px;margin:6px 0 4px;line-height:1.4;}
+  header.rep .sub{color:var(--sub);font-size:14.5px;}
+  h2{font-size:19px;margin:44px 0 14px;padding:8px 14px;background:var(--ink);color:#fff;border-radius:6px;}
+  h2 .no{color:#9fc3e8;margin-right:10px;font-family:var(--mono);}
+  p{margin:8px 0;}
+  code,.mono{font-family:var(--mono);font-size:.92em;background:var(--ext-bg);padding:1px 5px;border-radius:4px;}
+  strong{color:#000;}
+  table.spec{width:100%;border-collapse:collapse;margin:12px 0 18px;font-size:13.5px;}
+  table.spec th{background:var(--ink);color:#fff;text-align:left;padding:7px 10px;font-weight:600;}
+  table.spec td{border:1px solid var(--line);padding:6px 10px;vertical-align:top;}
+  table.spec tr:nth-child(even) td{background:#f8fafc;}
+  table.spec td.m{font-family:var(--mono);font-size:12.5px;}
+  .tablewrap{overflow-x:auto;}
+  .eq{background:#f8fafc;border:1px solid var(--line-soft);border-left:4px solid var(--acc);
+    border-radius:6px;padding:10px 18px;margin:10px 0;font-family:var(--mono);font-size:14px;
+    overflow-x:auto;white-space:nowrap;}
+  .callout{border-radius:8px;padding:12px 16px;margin:16px 0;border:1px solid;}
+  .callout .t{font-weight:800;display:block;margin-bottom:2px;}
+  .align{background:var(--acc-bg);border-color:#a9c8e6;} .align .t{color:var(--acc);}
+  .warnbox{background:var(--warn-bg);border-color:#e0c689;} .warnbox .t{color:var(--warn);}
+  figure{margin:22px 0;text-align:center;} figure svg{max-width:100%;height:auto;}
+  figcaption{font-size:13px;color:var(--sub);margin-top:6px;}
+  ul.tight{margin:6px 0;padding-left:24px;} ul.tight li{margin:4px 0;}
+  @media print{.page{max-width:none;padding:0 6mm;} h2{break-after:avoid;} figure,table.spec,.callout{break-inside:avoid;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="rep">
+  <div class="kicker">DCC_CALIBRATION · 工程說明文件</div>
+  <h1>「focus 曲線與峰值」面板 — 來源鏈與參數對應圖解</h1>
+  <div class="sub">區域檢視面板下半部那張圖的每個元素從哪來、受哪些參數控制、怎麼判讀。
+  對應 M1(2026-07-14);與《Sim 工作台完全解析》§6 互補。</div>
+</header>
+
+<!-- ============================================================ -->
+<h2><span class="no">1</span>一張圖,三個階段的合成視圖</h2>
+
+<p>這張圖不是單一資料的呈現——它把<b>三個不同階段的產物疊在同一座標系</b>,
+讓「合焦在哪(Sim/實機)、量到哪(Phase F)、允許到哪(config)」一眼對齊:</p>
+
+<figure>
+<svg viewBox="0 0 960 120" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC',sans-serif">
+  <defs><marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#3d4a56"/></marker></defs>
+  <rect x="14" y="30" width="200" height="60" rx="8" fill="#eef5fc" stroke="#0b5cad" stroke-width="1.6"/>
+  <text x="114" y="54" font-size="13" font-weight="700" text-anchor="middle" fill="#0b5cad">生成(Sim 式 3-2)</text>
+  <text x="114" y="74" font-size="11.5" text-anchor="middle" fill="#3d4a56">fv = 1000·exp(−((dac−峰位)/H)²)</text>
+  <rect x="268" y="30" width="180" height="60" rx="8" fill="#fff" stroke="#0b5cad" stroke-width="1.5"/>
+  <text x="358" y="54" font-size="13" font-weight="700" text-anchor="middle">Phase D 載入</text>
+  <text x="358" y="74" font-size="11.5" text-anchor="middle" fill="#3d4a56">形狀驗證/(D-5 聚合)</text>
+  <rect x="502" y="30" width="200" height="60" rx="8" fill="#fff" stroke="#0b5cad" stroke-width="1.5"/>
+  <text x="602" y="54" font-size="13" font-weight="700" text-anchor="middle">Phase F 擬合</text>
+  <text x="602" y="74" font-size="11.5" text-anchor="middle" fill="#3d4a56">poly_order 階擬合 → 峰值 + E-F01 檢查</text>
+  <rect x="756" y="30" width="190" height="60" rx="8" fill="#fff" stroke="#0b5cad" stroke-width="1.5"/>
+  <text x="851" y="54" font-size="13" font-weight="700" text-anchor="middle">判定</text>
+  <text x="851" y="74" font-size="11.5" text-anchor="middle" fill="#3d4a56">err = |b − peak|/span vs tol</text>
+  <line x1="214" y1="60" x2="268" y2="60" stroke="#3d4a56" stroke-width="1.8" marker-end="url(#fa)"/>
+  <line x1="448" y1="60" x2="502" y2="60" stroke="#3d4a56" stroke-width="1.8" marker-end="url(#fa)"/>
+  <line x1="702" y1="60" x2="756" y2="60" stroke="#3d4a56" stroke-width="1.8" marker-end="url(#fa)"/>
+</svg>
+<figcaption>圖 1 · fv 資料面的旅程:M2 之後,第一格換成「實機對比量測」,後三格完全不變。</figcaption>
+</figure>
+
+<table class="spec">
+  <tr><th style="width:22%">圖上元素</th><th style="width:24%">來源階段</th><th>內容</th></tr>
+  <tr><td><b>折線 + 10 個樣本點</b></td><td>Sim 生成 → Phase D 載入</td><td>該區的 <code>fv[f]</code> 原始值(序列檔 <code>focus</code> 資料面);x 座標 = <code>dacs</code>(掃描序列)</td></tr>
+  <tr><td><b>peak 垂直線</b></td><td><b>Phase F 擬合結果</b></td><td><code>poly_order</code>(4)階多項式擬合後密集掃描取峰——<b>不是取最大樣本點</b>,峰值線可落在採樣點之間(次取樣解析度 ~0.1 DAC)</td></tr>
+  <tr><td><b>E-F01 邊界兩條線</b></td><td>config 推導</td><td><code>(FAR + m·step, NEAR − m·step)</code>,m = <code>focus.peak_margin_steps</code>;擬合峰出窗 → E-F01 中止</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2><span class="no">2</span>完整標注圖(以峰值偏移 +60 為例)</h2>
+
+<div class="eq">生成式:fv(f) = 1000 · exp( −( (dac_f − (fc + peak_offset)) / H )² )    H = sweep 半幅(預設 240)</div>
+
+<figure>
+<svg viewBox="0 0 960 430" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang TC',sans-serif">
+  <defs><marker id="fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#a01818"/></marker>
+    <marker id="fax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#10181f"/></marker></defs>
+
+  <!-- E-F01 zones: x<158.9 and x>781.1 -->
+  <rect x="70" y="40" width="88.9" height="290" fill="#fbeeee"/>
+  <rect x="781.1" y="40" width="88.9" height="290" fill="#fbeeee"/>
+  <text x="114" y="58" font-size="11" text-anchor="middle" fill="#a01818" font-weight="700">E-F01 區</text>
+  <text x="825" y="58" font-size="11" text-anchor="middle" fill="#a01818" font-weight="700">E-F01 區</text>
+
+  <!-- axes -->
+  <line x1="70" y1="330" x2="890" y2="330" stroke="#10181f" stroke-width="1.6" marker-end="url(#fax)"/>
+  <line x1="70" y1="330" x2="70" y2="34" stroke="#10181f" stroke-width="1.6" marker-end="url(#fax)"/>
+  <text x="900" y="322" font-size="12" text-anchor="start">DAC</text>
+  <text x="62" y="30" font-size="12" text-anchor="end">focus value</text>
+  <text x="70" y="350" font-size="11" text-anchor="middle" fill="#3d4a56">FAR 180</text>
+  <text x="870" y="350" font-size="11" text-anchor="middle" fill="#3d4a56">NEAR 660</text>
+
+  <!-- curve (fc=420, offset=+60 → peak 480), 20-DAC polyline -->
+  <path d="M70,273.4 L103.3,260.7 L136.7,246.5 L170,230.7 L203.3,213.5 L236.7,195.2 L270,176.2
+           L303.3,156.9 L336.7,137.9 L370,119.7 L403.3,103.0 L436.7,88.4 L470,76.4 L503.3,67.4
+           L536.7,61.9 L570,60 L603.3,61.9 L636.7,67.4 L670,76.4 L703.3,88.4 L736.7,103.0
+           L770,119.7 L803.3,137.9 L836.7,156.9 L870,176.2"
+        fill="none" stroke="#0a6e35" stroke-width="2.4"/>
+  <!-- 10 sample points -->
+  <g fill="#fff" stroke="#0a6e35" stroke-width="2">
+    <circle cx="70" cy="273.4" r="4.5"/><circle cx="158.3" cy="236.4" r="4.5"/>
+    <circle cx="248.3" cy="188.6" r="4.5"/><circle cx="336.7" cy="137.9" r="4.5"/>
+    <circle cx="425" cy="93.3" r="4.5"/><circle cx="515" cy="65.0" r="4.5"/>
+    <circle cx="603.3" cy="61.9" r="4.5"/><circle cx="691.7" cy="83.9" r="4.5"/>
+    <circle cx="781.7" cy="125.9" r="4.5"/><circle cx="870" cy="176.2" r="4.5"/>
+  </g>
+
+  <!-- boundary lines -->
+  <line x1="158.9" y1="330" x2="158.9" y2="40" stroke="#a01818" stroke-width="1.3" stroke-dasharray="5 4"/>
+  <line x1="781.1" y1="330" x2="781.1" y2="40" stroke="#a01818" stroke-width="1.3" stroke-dasharray="5 4"/>
+  <text x="158.9" y="368" font-size="11" text-anchor="middle" fill="#a01818">FAR+step ≈ 233</text>
+  <text x="781.1" y="368" font-size="11" text-anchor="middle" fill="#a01818">NEAR−step ≈ 607</text>
+
+  <!-- b line (fc=420) -->
+  <line x1="470" y1="330" x2="470" y2="70" stroke="#0b5cad" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text x="470" y="350" font-size="11.5" text-anchor="middle" fill="#0b5cad" font-weight="700">b = fc(420)</text>
+  <text x="470" y="368" font-size="10.5" text-anchor="middle" fill="#0b5cad">回歸截距(disparity 零交叉)</text>
+
+  <!-- peak line (480) -->
+  <line x1="570" y1="330" x2="570" y2="52" stroke="#a01818" stroke-width="1.8"/>
+  <circle cx="570" cy="60" r="5.5" fill="#a01818"/>
+  <text x="572" y="350" font-size="11.5" text-anchor="start" fill="#a01818" font-weight="700">peak(Phase F 擬合)= 480</text>
+
+  <!-- err arrow -->
+  <line x1="470" y1="44" x2="570" y2="44" stroke="#a01818" stroke-width="2" marker-end="url(#fb)"/>
+  <text x="520" y="36" font-size="12.5" text-anchor="middle" fill="#a01818" font-weight="700">|b − peak| = 60 → err = 60/480 = 0.125</text>
+
+  <!-- notes -->
+  <text x="180" y="404" font-size="12" fill="#3d4a56">● 樣本點 = 序列檔 fv(Sim 式 3-2 / 實機量測)</text>
+  <text x="500" y="404" font-size="12" fill="#0b5cad">─ ─ b 線(來自回歸,圖上僅示意對照)</text>
+  <text x="180" y="424" font-size="12" fill="#a01818">─ peak 線 = Phase F 擬合峰;紅區 = E-F01 出界窗外</text>
+  <text x="500" y="424" font-size="12" fill="#a01818">err 箭頭 = 兩條獨立合焦估計的分歧</text>
+</svg>
+<figcaption>圖 2 · 峰值偏移 +60 之情境:曲線峰(480)離開回歸截距 b(420),err = 0.125 仍 PASS;
+偏移拉到 ±96 → err = 0.20 踩線(E-F02)。峰若被推進紅區(如合焦 640)→ E-F01 中止。</figcaption>
+</figure>
+
+<!-- ============================================================ -->
+<h2><span class="no">3</span>Sim 工作台參數對應</h2>
+
+<div class="tablewrap">
+<table class="spec">
+  <tr><th style="width:26%">參數 / 動作</th><th>對這張圖的影響</th></tr>
+  <tr><td class="m">合焦位置 fc</td><td>整條曲線(連同峰)<b>水平平移</b>;滑到 640 → 峰入紅區 → E-F01 中止(診斷選單「E-F01」即此)</td></tr>
+  <tr><td class="m">focus 峰值偏移</td><td>曲線峰移至 fc+offset,<b>但 b 留在 fc</b> → 峰值線與 b 線分離、err 上升;±96 → E-F02(診斷選單「E-F02」)</td></tr>
+  <tr><td class="m">config margin / num_positions</td><td>決定樣本點位置與數量;<b>H 為動態半幅 → 曲線寬度跟著 sweep 變</b>(端點恆為峰值 1/e);紅區邊界同步連動</td></tr>
+  <tr><td class="m">config focus.poly_order</td><td>Phase F 擬合階數(預設 4);樣本數須 > 階數(loader 交叉約束)</td></tr>
+  <tr><td class="m">config focus.peak_margin_steps</td><td>紅區寬度 = m×step;約束 2m &lt; N−1(否則有效窗為空,loader 拒絕)</td></tr>
+  <tr><td class="m">144×108 細粒度</td><td>fv 同走 D-5 聚合(Sim 之 fv 全區同值,聚合後不變)</td></tr>
+</table>
+</div>
+
+<div class="callout warnbox"><span class="t">刻意「不」影響它的參數(常見誤會點)</span>
+<b>σ、bias、nl2、nl3、null 注入都只作用於 data(disparity)面,不碰 focus 面</b>——
+所以拉大雜訊時回歸散點變毛,這張 focus 曲線卻依然光滑。這是目前 Sim 的簡化
+(實機的 fv 會有雜訊、無效幀通常兩面一起缺);M2 對接實測後若需演練 fv 雜訊對
+峰值擬合的影響,再為 focus 面增設獨立注入(4 階擬合本身有平滑效果,預期耐受性不差)。</div>
+
+<!-- ============================================================ -->
+<h2><span class="no">4</span>快速判讀表(看圖識因)</h2>
+
+<table class="spec">
+  <tr><th style="width:34%">看到的現象</th><th>原因 / 對應機制</th></tr>
+  <tr><td>peak 線與 b 線分離</td><td>系統性合焦分歧(Sim:peak_offset;實機:場曲/chart 傾斜/PD vs 對比合焦差)→ err 上升</td></tr>
+  <tr><td>peak 線進紅區、管線中止</td><td>E-F01:合焦位置落在掃描端點附近(chart 距離錯);訊息附有效範圍</td></tr>
+  <tr><td>曲線平移但 peak 與 b 一起動、err 不變</td><td>只動了 fc(chart 距離)且未觸界——兩條估計同源移動,交叉驗證本來就不該報警</td></tr>
+  <tr><td>曲線變寬/窄、紅區變位</td><td>margin 或 num_positions 改動 → sweep 形狀連動(H 動態推導)</td></tr>
+  <tr><td>peak 線不在任何樣本點正上方</td><td>正常——峰值是多項式擬合結果,次取樣解析度,非取最大點</td></tr>
+  <tr><td>樣本點粗糙但曲線判讀不受影響</td><td>(M2 實測情境)fv 雜訊被 poly 擬合平滑;峰值穩定度看擬合而非單點</td></tr>
+</table>
+
+<footer style="margin-top:56px;border-top:2px solid var(--line);padding-top:12px;color:var(--sub);font-size:12.5px;">
+DCC_calibration ·「focus 曲線與峰值」圖解 · 對應 M1(2026-07-14)·
+相關:<code>docs/Sim工作台說明.html</code>(§6 err 機制)、SPEC-002 Phase F、SPEC-005 §2。
+規範性內容以 specs/ 為權威。
+</footer>
+
+</div>
+</body>
+</html>
