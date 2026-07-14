@@ -32,7 +32,7 @@ if(DCC_BUILD_GUI)
 endif()
 
 option(DCC_BUILD_TESTS "Build unit tests (SPEC-005 UT-01..10)" ON)
-if(DCC_BUILD_TESTS)
+if(DCC_BUILD_TESTS AND NOT CMAKE_CROSSCOMPILING)
   enable_testing()
   add_subdirectory(tests)
 endif()

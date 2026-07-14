@@ -3,6 +3,7 @@
 // 真值:disp = (dac − focus_center) / true_dcc(r,c) [raw_pixel]。
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <tuple>
 #include <vector>

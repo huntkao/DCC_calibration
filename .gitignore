@@ -15,6 +15,7 @@ __pycache__/
 
 # C++ build
 build/
+build-win/
 imgui.ini
 logs/
 session.json
