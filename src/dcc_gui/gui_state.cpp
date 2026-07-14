@@ -128,6 +128,8 @@ bool GuiState::save_session(const std::string& path) {
     s["nonlinearity"] = spec.nonlinearity;
     s["s_curve"] = spec.s_curve;
     s["focus_peak_offset"] = spec.focus_peak_offset;
+    s["field_curvature"] = spec.field_curvature;
+    s["focus_amp_falloff"] = spec.focus_amp_falloff;
     s["fine_grid"] = fine_grid;
     s["null_frames"] = null_frames;
     j["scan"] = {{"range", scan_range}, {"steps", scan_steps}};
@@ -159,6 +161,8 @@ bool GuiState::load_session(const std::string& path) {
     spec.nonlinearity = s.value("nonlinearity", 0.0);
     spec.s_curve = s.value("s_curve", 0.0);
     spec.focus_peak_offset = s.value("focus_peak_offset", 0.0);
+    spec.field_curvature = s.value("field_curvature", 0.0);
+    spec.focus_amp_falloff = s.value("focus_amp_falloff", 0.0);
     fine_grid = s.value("fine_grid", false);
     null_frames = s.value("null_frames", 0);
     if (j.contains("scan")) {

@@ -28,16 +28,28 @@ struct SynthSpec {
   double s_curve = 0.0;               // nl3:奇次「S 型壓縮」項(canonical:PD 角度響應飽和、
                                       //      模糊圈超出相關窗;殘差 ∝ −u³,兩端反向,
                                       //      正值 = 端點視差幅度壓縮 nl3×100%)
-  double focus_peak_offset = 0.0;     // focus 峰值相對 disparity 合焦點之系統性偏移 [DAC]
-                                      // (模擬場曲/chart 傾斜/PD vs 對比合焦分歧;
-                                      //  err = |offset|/span,offset 96 → err 0.20 踩線)
+  double focus_peak_offset = 0.0;     // focus 峰值相對 disparity 合焦點之「全區均勻」系統偏移 [DAC]
+                                      // (模擬 PD vs 對比合焦之整體分歧;err = |offset|/span,
+                                      //  offset 96 → err 0.20 踩線)
+  double field_curvature = 0.0;       // 逐區 focus 峰值「徑向」偏移 [DAC](場曲:中央 0 → 角落此值)
+                                      // → 各區合焦位置不同,err heatmap 呈中央小/角落大之徑向圖樣
+                                      // (實機主導效應;peak(r,c)=fc+offset+field_curv·radial(r,c))
+  double focus_amp_falloff = 0.0;     // 角落 focus 振幅衰減比例 0..1(離軸 MTF 下降 + vignette;
+                                      //  僅影響曲線高低外觀,不改峰值位置/err——峰由 argmax 決定)
   unsigned seed = 0;                  // 雜訊種子(確定性)
   std::vector<std::tuple<int, int, int>> null_cells;  // (frame, r, c) → null
   bool with_quality = false;          // 輸出 quality 面(定值 1.0)
 };
 
+// 正規化徑向距離:grid 中心 = 0,四角 = 1。
+double radial_dist(int r, int c, int grid_w, int grid_h);
+
 // 逐 cell 真值 DCC:中央 center_dcc,向角落線性升至 corner_dcc。
 double true_dcc(int r, int c, int grid_w, int grid_h, double center_dcc, double corner_dcc);
+
+// 逐 cell 真值 focus 峰值位置 [DAC]:fc + 均勻 offset + 徑向場曲。
+double true_focus_peak(int r, int c, int grid_w, int grid_h, double focus_center,
+                       double peak_offset, double field_curvature);
 
 // 生成 JSON 文字(可直接餵 disp_seq_reader 或落盤)。
 std::string generate(const SynthSpec& spec);

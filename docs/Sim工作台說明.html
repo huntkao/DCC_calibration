@@ -217,7 +217,18 @@ bias=0.3(驗收上限)→ b 偏移約 3.8 DAC → err 貢獻僅 0.8%。用於驗
 <p>nl3(S 型壓縮)是 canonical 主導項;nl2(不對稱)為次要項。正規化到 H 使其語意
 =「掃描端點處的效應比例」:nl3 = 0.2 → 端點視差幅度壓縮 20%。</p>
 
-<h3>4.7 focus_peak_offset — focus 峰值偏移 [DAC](詳見 §6)</h3>
+<h3>4.7 focus_peak_offset / field_curvature / focus_amp_falloff — focus 峰值場</h3>
+<p>三者共同決定逐區 focus 峰值:<code>peak(r,c) = fc + focus_peak_offset +
+field_curvature · radial(r,c)</code>。</p>
+<ul class="tight">
+<li><b>focus_peak_offset</b>(全區均勻)— 模擬 PD vs 對比合焦之整體分歧;err 演練旋鈕(詳見 §6)。</li>
+<li><b>field_curvature</b>(逐區徑向)— 模擬<b>場曲</b>:各區合焦位置不同 → err heatmap 呈中央小、
+角落大之<b>徑向圖樣</b>(實機 metal-shield 校正之主要判讀對象)。</li>
+<li><b>focus_amp_falloff</b> — 角落曲線振幅衰減(離軸 MTF/vignette);<b>僅改外觀高低,不動峰值位置與
+err</b>(峰由 argmax 決定)。</li>
+</ul>
+<p>三個 err 實機來源(場曲/chart 傾斜/PD 分歧)之詳細圖解另見
+<code>docs/focus曲線圖解說明.html §3.5</code>。</p>
 
 <h3>4.8 half_span(H)— 正規化尺度(內部推導,非滑桿)</h3>
 <p><code>H = (dacs.back − dacs.front)/2</code>,預設 config = 240。
@@ -392,7 +403,9 @@ NFR-02(重複性 CV)把關——兩個機制各司其職。</div>
   <tr><td class="m">center/corner_dcc</td><td class="c">DAC/px</td><td class="c">8..20(12.46/14.5)</td><td>DCC 真值場;負值 = 模擬 L/R 顛倒(E-E01)</td></tr>
   <tr><td class="m">s_curve(nl3)</td><td class="c">—</td><td class="c">0..0.3(0)</td><td>S 型壓縮(canonical);端點幅度壓縮 nl3×100%;ΔDCC 偶對稱</td></tr>
   <tr><td class="m">nonlinearity(nl2)</td><td class="c">—</td><td class="c">0..0.2(0)</td><td>不對稱項(鐘型殘差);ΔDCC ≈ 2·nl2·Δ/H 線性</td></tr>
-  <tr><td class="m">focus_peak_offset</td><td class="c">DAC</td><td class="c">−120..120(0)</td><td>err 演練:err = |offset|/span;±96 踩 tolerance 線</td></tr>
+  <tr><td class="m">focus_peak_offset</td><td class="c">DAC</td><td class="c">−120..120(0)</td><td>focus 峰值「全區均勻」偏移;err = |offset|/span;±96 踩 tolerance 線</td></tr>
+  <tr><td class="m">field_curvature</td><td class="c">DAC</td><td class="c">−120..120(0)</td><td>focus 峰值「逐區徑向」偏移(場曲,中央 0→角落此值)→ err 徑向圖樣(實機主導)</td></tr>
+  <tr><td class="m">focus_amp_falloff</td><td class="c">—</td><td class="c">0..0.9(0)</td><td>角落 focus 振幅衰減(離軸 MTF/vignette);僅外觀,不改峰值位置/err</td></tr>
   <tr><td class="m">null_frames</td><td class="c">幀</td><td class="c">0..5(0)</td><td>角落區 (5,7) 前 N 幀無效;≥3 → E-D03</td></tr>
   <tr><td class="m">fine_grid</td><td class="c">—</td><td class="c">off/on</td><td>144×108 細粒度輸出 → 行使 D-5 聚合</td></tr>
   <tr><td class="m">unit / pitch_x</td><td class="c">—</td><td class="c">隨 config</td><td>出檔單位宣告;讀取端唯一入向轉換點(×16)</td></tr>

@@ -62,9 +62,13 @@ void draw_sim_panel(GuiState& s) {
   ch |= slider_d("角落 DCC 真值", &s.spec.corner_dcc, 8.0f, 20.0f);
   ch |= slider_d("非線性 nl3(S 型壓縮,canonical)", &s.spec.s_curve, 0.0f, 0.3f, "%.3f");
   ch |= slider_d("非線性 nl2(不對稱,鐘型)", &s.spec.nonlinearity, 0.0f, 0.2f, "%.3f");
-  ch |= slider_d("focus 峰值偏移 [DAC]", &s.spec.focus_peak_offset, -120.0f, 120.0f, "%.0f");
+  ch |= slider_d("focus 峰值偏移(全區均勻)[DAC]", &s.spec.focus_peak_offset, -120.0f, 120.0f, "%.0f");
   ImGui::SameLine();
-  ImGui::TextDisabled("(err 演練:±96 → err 0.20 踩線)");
+  ImGui::TextDisabled("(err 演練:±96 → 踩線)");
+  ch |= slider_d("場曲 field_curvature(角落)[DAC]", &s.spec.field_curvature, -120.0f, 120.0f, "%.0f");
+  ImGui::SameLine();
+  ImGui::TextDisabled("(逐區 → err 徑向圖樣)");
+  ch |= slider_d("focus 角落振幅衰減", &s.spec.focus_amp_falloff, 0.0f, 0.9f, "%.2f");
   ch |= ImGui::Checkbox("以 144×108 細粒度輸出(行使 D-5 聚合)", &s.fine_grid);
   ch |= ImGui::SliderInt("角落區 (5,7) null 幀數", &s.null_frames, 0, 5);
   ImGui::SameLine();
@@ -305,6 +309,10 @@ void draw_region_detail(GuiState& s) {
   if (ImPlot::BeginPlot("focus 曲線與峰值", ImVec2(-1, 240))) {
     ImPlot::SetupAxes("DAC", "focus value", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
     ImPlot::PlotLine("fv", fx.data(), fy.data(), static_cast<int>(n));
+    // 採樣點藍色小圓(對映各掃描幀之 fv 原始值,與回歸圖之樣本點呼應)。
+    const ImVec4 kSampleBlue(0.15f, 0.45f, 0.95f, 1.0f);
+    ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, kSampleBlue, IMPLOT_AUTO, kSampleBlue);
+    ImPlot::PlotScatter("採樣點", fx.data(), fy.data(), static_cast<int>(n));
     const double peak = reg.focus_peak;
     ImPlot::PlotInfLines("peak", &peak, 1);
     const double step = res.span / static_cast<double>(n - 1);

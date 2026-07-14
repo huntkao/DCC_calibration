@@ -12,14 +12,22 @@
 
 namespace dcc::sim {
 
-double true_dcc(int r, int c, int grid_w, int grid_h, double center_dcc, double corner_dcc) {
-  // 正規化徑向距離(中心 0 → 角落 1),線性內插。
+double radial_dist(int r, int c, int grid_w, int grid_h) {
+  // 中心 0 → 四角 1(對角線正規化)。
   const double cy = 0.5 * static_cast<double>(grid_h - 1);
   const double cx = 0.5 * static_cast<double>(grid_w - 1);
   const double dy = (static_cast<double>(r) - cy) / cy;
   const double dx = (static_cast<double>(c) - cx) / cx;
-  const double dist = std::min(1.0, std::sqrt(dx * dx + dy * dy) / std::sqrt(2.0));
-  return center_dcc + (corner_dcc - center_dcc) * dist;
+  return std::min(1.0, std::sqrt(dx * dx + dy * dy) / std::sqrt(2.0));
+}
+
+double true_dcc(int r, int c, int grid_w, int grid_h, double center_dcc, double corner_dcc) {
+  return center_dcc + (corner_dcc - center_dcc) * radial_dist(r, c, grid_w, grid_h);
+}
+
+double true_focus_peak(int r, int c, int grid_w, int grid_h, double focus_center,
+                       double peak_offset, double field_curvature) {
+  return focus_center + peak_offset + field_curvature * radial_dist(r, c, grid_w, grid_h);
 }
 
 std::string generate(const SynthSpec& s) {
@@ -58,10 +66,16 @@ std::string generate(const SynthSpec& s) {
     for (int r = 0; r < s.grid_h; ++r) {
       json drow = json::array(), frow = json::array(), qrow = json::array();
       for (int c = 0; c < s.grid_w; ++c) {
-        // focus:以 (focus_center + focus_peak_offset) 為峰之高斯(全區同型);
-        // offset ≠ 0 時 b 與 peak 系統性分歧 → 演練 err/tolerance 機制。
-        const double t = (dac - (s.focus_center + s.focus_peak_offset)) / half_span;
-        frow.push_back(1000.0 * std::exp(-t * t));
+        // focus:以 true_focus_peak(r,c) 為峰之高斯。
+        //  · 均勻 offset(focus_peak_offset)→ b 與 peak 全區同步分歧
+        //  · 徑向場曲(field_curvature)→ 各區合焦位置不同 → err 徑向圖樣(實機主導)
+        //  · 角落振幅衰減(focus_amp_falloff)→ 離軸 MTF/vignette,僅影響曲線高低外觀
+        const double peak_rc = true_focus_peak(r, c, s.grid_w, s.grid_h, s.focus_center,
+                                               s.focus_peak_offset, s.field_curvature);
+        const double t = (dac - peak_rc) / half_span;
+        const double amp =
+            1000.0 * (1.0 - s.focus_amp_falloff * radial_dist(r, c, s.grid_w, s.grid_h));
+        frow.push_back(amp * std::exp(-t * t));
         if (s.with_quality) qrow.push_back(1.0);
 
         if (is_null(f, r, c)) {
