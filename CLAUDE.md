@@ -41,6 +41,7 @@ ctest --test-dir build                                # 應 56/56 綠
 4. `specs/SPEC-003_架構與模組介面.md` — 分層與介面契約
 5. `specs/SPEC-004_資料格式.md` — **單位權威定義,最重要**
 6. 領域知識:`docs/DCC校正step-by-step詳解.md`、`docs/PhaseD-1_PD像素解析圖解.html`;
+   演算法數學細節(OLS 閉式解、focus 多項式擬合+密集掃描):`docs/演算法數學細節_回歸與focus峰值.html`;
    跨團隊摘要:`docs/M0_階段報告_規格制定與規劃.html`(已發布 GitHub Pages)
 
 ## 鐵律(違反 = bug)

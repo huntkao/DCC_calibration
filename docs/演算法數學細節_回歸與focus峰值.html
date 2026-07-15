@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC 回歸與 focus 峰值 — 演算法數學細節</title>
+<style>
+  :root{
+    --ink:#10181f; --sub:#3d4a56; --line:#c9d3dc; --line-soft:#e2e8ee;
+    --acc:#0b5cad; --acc-bg:#eef5fc; --ok:#0a6e35; --ok-bg:#eef7f0;
+    --warn:#8a5a00; --warn-bg:#fdf6e3;
+    --ext-bg:#f4f6f8; --bad:#a01818; --bad-bg:#fbeeee;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;color:var(--ink);background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei","Segoe UI",sans-serif;
+    font-size:15px;line-height:1.75;}
+  .page{max-width:1020px;margin:0 auto;padding:0 28px 80px;}
+  header.rep{border-bottom:3px solid var(--ink);padding:38px 0 18px;margin-bottom:24px;}
+  header.rep .kicker{font-size:13px;letter-spacing:.18em;color:var(--acc);font-weight:700;}
+  header.rep h1{font-size:26px;margin:6px 0 4px;line-height:1.4;}
+  header.rep .sub{color:var(--sub);font-size:14.5px;}
+  h2{font-size:19px;margin:44px 0 14px;padding:8px 14px;background:var(--ink);color:#fff;border-radius:6px;}
+  h2 .no{color:#9fc3e8;margin-right:10px;font-family:var(--mono);}
+  h3{font-size:16px;margin:26px 0 8px;color:var(--acc);border-left:4px solid var(--acc);padding-left:10px;}
+  p{margin:8px 0;}
+  code,.mono{font-family:var(--mono);font-size:.92em;background:var(--ext-bg);padding:1px 5px;border-radius:4px;}
+  strong{color:#000;}
+  table.spec{width:100%;border-collapse:collapse;margin:12px 0 18px;font-size:13.5px;}
+  table.spec th{background:var(--ink);color:#fff;text-align:left;padding:7px 10px;font-weight:600;}
+  table.spec td{border:1px solid var(--line);padding:6px 10px;vertical-align:top;}
+  table.spec tr:nth-child(even) td{background:#f8fafc;}
+  table.spec td.m{font-family:var(--mono);font-size:12.5px;}
+  .tablewrap{overflow-x:auto;}
+  .eq{background:#f8fafc;border:1px solid var(--line-soft);border-left:4px solid var(--acc);
+    border-radius:6px;padding:10px 18px;margin:10px 0;font-family:var(--mono);font-size:14px;
+    overflow-x:auto;white-space:nowrap;}
+  .eq .lbl{color:var(--sub);white-space:normal;}
+  .callout{border-radius:8px;padding:12px 16px;margin:16px 0;border:1px solid;}
+  .callout .t{font-weight:800;display:block;margin-bottom:2px;}
+  .align{background:var(--acc-bg);border-color:#a9c8e6;} .align .t{color:var(--acc);}
+  .okbox{background:var(--ok-bg);border-color:#a9d3b6;} .okbox .t{color:var(--ok);}
+  .warnbox{background:var(--warn-bg);border-color:#e0c689;} .warnbox .t{color:var(--warn);}
+  .badbox{background:var(--bad-bg);border-color:#e0a6a6;} .badbox .t{color:var(--bad);}
+  figure{margin:22px 0;text-align:center;} figure svg{max-width:100%;height:auto;}
+  figcaption{font-size:13px;color:var(--sub);margin-top:6px;}
+  ul.tight{margin:6px 0;padding-left:24px;} ul.tight li{margin:4px 0;}
+  ol.steps{margin:8px 0;padding-left:22px;} ol.steps li{margin:6px 0;}
+  .src{font-family:var(--mono);font-size:12px;color:var(--sub);background:var(--ext-bg);
+    border:1px solid var(--line-soft);border-radius:4px;padding:1px 6px;}
+  .toc{background:#f8fafc;border:1px solid var(--line-soft);border-radius:8px;padding:14px 20px;margin:8px 0 4px;}
+  .toc a{color:var(--acc);text-decoration:none;} .toc a:hover{text-decoration:underline;}
+  .toc ol{margin:4px 0;padding-left:22px;}
+  @media print{.page{max-width:none;padding:0 6mm;} h2{break-after:avoid;} figure,table.spec,.callout,.eq{break-inside:avoid;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="rep">
+  <div class="kicker">DCC_CALIBRATION · 工程說明文件</div>
+  <h1>DCC 回歸與 focus 峰值 — 演算法數學細節</h1>
+  <div class="sub">本工具的兩具數值引擎:<b>逐區線性回歸(求 DCC 斜率與截距)</b>與
+  <b>focus 曲線多項式擬合(求合焦峰值)</b>。從閉式解、正規方程、數值穩定性到出界判定,
+  完整推導對映實作,工程人員不需翻閱 <code>.cpp</code> 即可掌握。對應 M1(2026-07-15)。</div>
+</header>
+
+<div class="toc">
+  <b>目錄</b>
+  <ol>
+    <li><a href="#s1">全景:一條管線,兩具擬合引擎</a></li>
+    <li><a href="#s2">回歸引擎:普通最小平方(OLS)閉式解</a></li>
+    <li><a href="#s3">focus 峰值引擎:多項式擬合 + 密集掃描</a></li>
+    <li><a href="#s4">判定:截距 vs 峰值的一致性誤差</a></li>
+    <li><a href="#s5">數值穩定性與失敗碼一覽</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s1"><span class="no">1</span>全景:一條管線,兩具擬合引擎</h2>
+
+<p>每一個影像分區(預設 8×6 = 48 區)都要獨立跑<b>兩次擬合</b>,兩者互為交叉驗證:</p>
+
+<figure>
+<svg viewBox="0 0 960 250" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">
+  <!-- input -->
+  <rect x="10" y="95" width="150" height="60" rx="8" fill="#eef5fc" stroke="#0b5cad" stroke-width="1.5"/>
+  <text x="85" y="118" text-anchor="middle" font-size="13" font-weight="700" fill="#0b5cad">逐站量測</text>
+  <text x="85" y="136" text-anchor="middle" font-size="11" fill="#3d4a56">10 站 · 每站:</text>
+  <text x="85" y="150" text-anchor="middle" font-size="11" fill="#3d4a56">DAC、disparity、focus</text>
+
+  <!-- arrow -->
+  <line x1="160" y1="125" x2="205" y2="80" stroke="#7a8794" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="160" y1="125" x2="205" y2="170" stroke="#7a8794" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- engine A -->
+  <rect x="210" y="40" width="290" height="80" rx="8" fill="#fff" stroke="#0a6e35" stroke-width="1.5"/>
+  <text x="355" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#0a6e35">① 回歸引擎  regression.cpp</text>
+  <text x="355" y="82" text-anchor="middle" font-size="12" fill="#10181f">OLS:DAC = k·disparity + b</text>
+  <text x="355" y="102" text-anchor="middle" font-size="11.5" fill="#3d4a56">→ 斜率 k = <tspan font-weight="700">DCC</tspan>、截距 b = 合焦點</text>
+
+  <!-- engine B -->
+  <rect x="210" y="135" width="290" height="80" rx="8" fill="#fff" stroke="#8a5a00" stroke-width="1.5"/>
+  <text x="355" y="157" text-anchor="middle" font-size="13" font-weight="700" fill="#8a5a00">② focus 引擎  focus.cpp</text>
+  <text x="355" y="177" text-anchor="middle" font-size="12" fill="#10181f">4 階多項式擬合 focus(DAC)</text>
+  <text x="355" y="197" text-anchor="middle" font-size="11.5" fill="#3d4a56">→ 峰值位置 = 對比合焦 DAC</text>
+
+  <!-- arrows to judge -->
+  <line x1="500" y1="80" x2="560" y2="115" stroke="#7a8794" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="500" y1="175" x2="560" y2="135" stroke="#7a8794" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- judge -->
+  <rect x="565" y="90" width="180" height="70" rx="8" fill="#eef5fc" stroke="#0b5cad" stroke-width="1.5"/>
+  <text x="655" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#0b5cad">③ 判定  validate.cpp</text>
+  <text x="655" y="132" text-anchor="middle" font-size="12" fill="#10181f">err = |b − 峰值| / span</text>
+  <text x="655" y="150" text-anchor="middle" font-size="11.5" fill="#3d4a56">err &lt; tolerance ? PASS</text>
+
+  <line x1="745" y1="125" x2="790" y2="125" stroke="#7a8794" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="795" y="95" width="150" height="60" rx="8" fill="#eef7f0" stroke="#0a6e35" stroke-width="1.5"/>
+  <text x="870" y="120" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0a6e35">DCC map</text>
+  <text x="870" y="138" text-anchor="middle" font-size="11" fill="#3d4a56">+ PASS/FAIL</text>
+
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+    <path d="M0,0 L8,4 L0,8 Z" fill="#7a8794"/></marker></defs>
+</svg>
+<figcaption>兩具引擎吃同一組逐站資料的不同欄位:回歸吃 (disparity, DAC),focus 吃 (DAC, focus value)。
+兩者算出的合焦 DAC 若一致,校正才可信。</figcaption>
+</figure>
+
+<div class="callout align"><span class="t">為什麼「同一個合焦點要算兩次」</span>
+回歸的截距 <code>b</code> 是<b>相位視差外推</b>出的合焦位置(disparity=0 對應的 DAC);
+focus 峰值是<b>對比清晰度直接量測</b>的合焦位置。兩者理論上應相等——
+不相等的量就是校正誤差 <code>err</code>,這正是交叉驗證的核心(SPEC-002 Phase F)。</div>
+
+<!-- ============================================================ -->
+<h2 id="s2"><span class="no">2</span>回歸引擎:普通最小平方(OLS)閉式解</h2>
+<p class="src">實作:src/dcc_core/src/regression.cpp · <code>fit_region()</code></p>
+
+<h3>2.1 模型與待解量</h3>
+<p>單區內,沿掃描 10 站得到成對樣本 <code>(xᵢ, yᵢ)</code>,其中 <code>x = disparity [raw_pixel]</code>、
+<code>y = DAC</code>。假設線性關係:</p>
+<div class="eq">y = k · x + b &nbsp;&nbsp;<span class="lbl">// k = DCC 斜率 [DAC/raw_pixel](恆正)、b = 截距 [DAC](= 合焦點)</span></div>
+<p>目標:找 <code>k, b</code> 使殘差平方和最小。</p>
+<div class="eq">S(k, b) = Σᵢ ( yᵢ − k·xᵢ − b )²</div>
+
+<h3>2.2 從一階條件導出閉式解</h3>
+<p>對 <code>b</code> 與 <code>k</code> 各取偏導令零(正規方程):</p>
+<div class="eq">∂S/∂b = −2 Σ( yᵢ − k xᵢ − b ) = 0 &nbsp;⇒&nbsp; b = ȳ − k·x̄</div>
+<div class="eq">∂S/∂k = −2 Σ xᵢ( yᵢ − k xᵢ − b ) = 0 &nbsp;⇒&nbsp; k = S<sub>xy</sub> / S<sub>xx</sub></div>
+<p>其中 <code>x̄, ȳ</code> 為均值,分子分母是<b>中心化</b>(去均值)後的交叉積與平方和:</p>
+<div class="eq">S<sub>xx</sub> = Σ(xᵢ − x̄)²&nbsp;&nbsp;&nbsp; S<sub>xy</sub> = Σ(xᵢ − x̄)(yᵢ − ȳ)&nbsp;&nbsp;&nbsp; S<sub>yy</sub> = Σ(yᵢ − ȳ)²</div>
+
+<h3>2.3 單趟累加的計算形式(實作採用)</h3>
+<p>程式不先算均值再減——那要掃兩趟。改用代數等價的<b>單趟累加</b>:一次迴圈收齊
+<code>Σx, Σy, Σx², Σxy, Σy²</code> 五個原始和(<code>NaN</code> 樣本略過、不計入 <code>n</code>),再用下式還原中心化量:</p>
+<div class="eq">S<sub>xx</sub> = Σx² − (Σx)²/n&nbsp;&nbsp;&nbsp; S<sub>xy</sub> = Σxy − (Σx)(Σy)/n&nbsp;&nbsp;&nbsp; S<sub>yy</sub> = Σy² − (Σy)²/n</div>
+<p>於是三個輸出量:</p>
+<div class="eq">k = S<sub>xy</sub> / S<sub>xx</sub>&nbsp;&nbsp;&nbsp;&nbsp; b = (Σy − k·Σx) / n&nbsp;&nbsp;&nbsp;&nbsp; R² = S<sub>xy</sub>² / (S<sub>xx</sub>·S<sub>yy</sub>)</div>
+<p>其中 <code>b = (Σy − k·Σx)/n = ȳ − k·x̄</code>,與 2.2 一致;<code>R²</code> 為判定係數,量測擬合品質
+(<code>&lt; r2_warn</code> 時上層發警告,不中止)。</p>
+
+<div class="callout warnbox"><span class="t">數值細節:disparity 無變異的退化</span>
+若該區 10 站的 disparity 幾乎不動(例如場景/區域無足夠紋理),<code>S<sub>xx</sub> ≤ 0</code>,
+斜率無定義 → 擲 <code>E-D03</code>。這比讓 <code>k</code> 變成天文數字後才爆更早、更好診斷。</div>
+
+<h3>2.4 為什麼 v1 用 OLS,而非正交回歸</h3>
+<p>OLS 假設<b>只有 y(DAC)有誤差、x(disparity)無誤差</b>。實際上 disparity 由外部 SAD 模組
+量出,本身帶噪(σ_d),屬 errors-in-variables(EIV)情形,OLS 斜率會有已知的<b>衰減偏差</b>
+(往零方向偏)。M1 先用 OLS 打通管線,並在 M0 誤差預算(<code>M0_階段報告 §8</code>)量化了這個偏差量級;
+<code>fit_region</code> 的介面刻意讓 fitter 可抽換,EIV 修正列為 M2 備忘(SPEC-005 §8 #2)。</p>
+
+<figure>
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">
+  <!-- axes -->
+  <line x1="70" y1="250" x2="600" y2="250" stroke="#3d4a56" stroke-width="1.5"/>
+  <line x1="70" y1="250" x2="70" y2="30" stroke="#3d4a56" stroke-width="1.5"/>
+  <text x="600" y="272" text-anchor="end" font-size="12" fill="#3d4a56">disparity x [raw_px]</text>
+  <text x="60" y="40" text-anchor="end" font-size="12" fill="#3d4a56">DAC y</text>
+  <!-- regression line: y = k x + b, choose to render -->
+  <line x1="70" y1="60" x2="560" y2="240" stroke="#0a6e35" stroke-width="2.5"/>
+  <!-- sample points scattered around line -->
+  <g fill="#0b5cad">
+    <circle cx="110" cy="88" r="4"/><circle cx="160" cy="95" r="4"/><circle cx="205" cy="118" r="4"/>
+    <circle cx="255" cy="128" r="4"/><circle cx="300" cy="150" r="4"/><circle cx="350" cy="158" r="4"/>
+    <circle cx="400" cy="182" r="4"/><circle cx="450" cy="196" r="4"/><circle cx="500" cy="212" r="4"/>
+    <circle cx="545" cy="228" r="4"/>
+  </g>
+  <!-- residual dashes for a couple -->
+  <line x1="205" y1="118" x2="205" y2="128" stroke="#a01818" stroke-width="1.2" stroke-dasharray="2 2"/>
+  <line x1="400" y1="182" x2="400" y2="174" stroke="#a01818" stroke-width="1.2" stroke-dasharray="2 2"/>
+  <!-- intercept marker: x=0 => at x-axis pixel 70 -->
+  <circle cx="70" cy="45" r="5" fill="#8a5a00"/>
+  <text x="82" y="42" font-size="12.5" font-weight="700" fill="#8a5a00">截距 b(x=0 → 合焦 DAC)</text>
+  <!-- slope annotation -->
+  <text x="360" y="112" font-size="12.5" font-weight="700" fill="#0a6e35">斜率 = k = DCC</text>
+  <text x="360" y="128" font-size="11.5" fill="#3d4a56">最小化紅色殘差平方和</text>
+</svg>
+<figcaption>OLS 幾何:綠線斜率即 DCC,綠線與 y 軸(disparity=0)交點即截距 b。
+紅虛線是各站殘差,OLS 讓其平方和最小。UI 回歸面板上的藍點就是這些 (xᵢ, yᵢ)。</figcaption>
+</figure>
+
+<!-- ============================================================ -->
+<h2 id="s3"><span class="no">3</span>focus 峰值引擎:多項式擬合 + 密集掃描</h2>
+<p class="src">實作:src/dcc_core/src/focus.cpp · <code>peak()</code> / <code>solve_linear()</code></p>
+
+<p>focus 曲線(清晰度 vs DAC)呈單峰鐘形,峰頂即對比合焦位置。取峰值分三步:
+<b>座標正規化 → 最小平方擬合多項式 → 密集掃描取最大</b>。</p>
+
+<h3>3.1 座標正規化(關鍵的數值前處理)</h3>
+<p>DAC 絕對值落在數百量級(例:180–660)。若直接以這種大數的高次冪建 Vandermonde 矩陣,
+<code>x⁸ ≈ 660⁸ ≈ 3.6×10²²</code>,與低次項相差二十幾個數量級,正規方程矩陣<b>條件數爆掉</b>、解不可信。
+先把 DAC 線性映射到 <code>[−1, 1]</code>:</p>
+<div class="eq">center = (dac<sub>min</sub> + dac<sub>max</sub>)/2&nbsp;&nbsp;&nbsp; half = (dac<sub>max</sub> − dac<sub>min</sub>)/2&nbsp;&nbsp;&nbsp; tᵢ = (dacᵢ − center) / half</div>
+<p>擬合在 <code>t ∈ [−1,1]</code> 上進行(<code>tⁿ</code> 恆有界),最後再把峰值 <code>t*</code> 映射回 DAC:
+<code>peak_dac = center + t*·half</code>。</p>
+
+<h3>3.2 多項式最小平方 → 正規方程</h3>
+<p>擬合 <code>P</code> 階多項式(預設 <code>poly_order = 4</code>,係數 <code>m = P+1</code> 個):</p>
+<div class="eq">p(t) = c₀ + c₁t + c₂t² + … + c<sub>P</sub>t<sup>P</sup></div>
+<p>最小化 <code>Σᵢ(yᵢ − p(tᵢ))²</code>。以 Vandermonde 設計矩陣 <code>V</code>(<code>V[i][j] = tᵢ ʲ</code>)寫成
+<b>正規方程</b>:</p>
+<div class="eq">(Vᵀ V) · c = Vᵀ y</div>
+<p>逐元素即冪次和(Hankel 結構),實作正是這樣累加:</p>
+<div class="eq">(VᵀV)<sub>r,c</sub> = Σᵢ tᵢ<sup>(r+c)</sup>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (Vᵀy)<sub>r</sub> = Σᵢ tᵢ<sup>r</sup> · yᵢ&nbsp;&nbsp;&nbsp; (r, c = 0…P)</div>
+<p>每個樣本先算好 <code>tᵢ⁰ … tᵢ²ᴾ</code> 這 <code>2m−1</code> 個冪次,填入 <code>m×m</code> 矩陣與 <code>m</code> 維右端向量。</p>
+
+<h3>3.3 解線性系統:部分主元高斯消去</h3>
+<p><code>m</code> 很小(5×5),用直接法即可。<code>solve_linear()</code> 做<b>部分主元(partial pivoting)</b>
+高斯消去:</p>
+<ol class="steps">
+  <li>逐行選主元:在當前欄由對角起往下找<b>絕對值最大</b>的列,與當前列對調(降低捨入誤差、避免小主元放大)。</li>
+  <li>主元絕對值 <code>&lt; 1e−14</code> 視為<b>奇異</b>(樣本退化)→ 擲 <code>E-D03</code>。</li>
+  <li>前向消去成上三角,再<b>回代</b>解出係數 <code>c</code>。</li>
+</ol>
+
+<h3>3.4 密集掃描取峰(而非解析求導)</h3>
+<p>拿到 <code>c</code> 後,不解 <code>p′(t)=0</code>(4 階多項式的導數是 3 次,要開根、還要辨別多個駐點裡哪個是範圍內全域最大)。
+改用<b>穩健的密集掃描</b>:在 <code>t ∈ [−1,1]</code> 均勻取 <code>4801</code> 點,逐點以 Horner 展開求值,取最大者:</p>
+<div class="eq">t* = argmax<sub>t ∈ {−1 … 1, 4801 點}</sub> p(t)&nbsp;&nbsp;&nbsp;⇒&nbsp;&nbsp; peak_dac = center + t*·half</div>
+<div class="callout align"><span class="t">4801 點 = ~0.1 DAC 解析度</span>
+以掃描範圍 480 DAC 為例:<code>480 / (4801−1) = 0.1 DAC</code>。這遠細於 VCM 的 DAC 量化步階,
+次像素峰值已足夠精確;而密集掃描天然回傳<b>範圍內全域最大</b>,不會被邊緣的偽駐點騙到,程式碼也簡單無分支陷阱。</div>
+
+<h3>3.5 出界檢查(chart 距離/場曲防呆)</h3>
+<p>合焦峰值必須<b>嚴格落在掃描範圍內側</b>,且離兩端至少 <code>peak_margin_steps</code> 站(預設 1 站):</p>
+<div class="eq">step = (dac<sub>max</sub> − dac<sub>min</sub>) / (N−1)&nbsp;&nbsp;&nbsp; 合格區間 = ( dac<sub>min</sub> + margin·step ,&nbsp; dac<sub>max</sub> − margin·step )</div>
+<p>峰值貼邊代表真正的合焦點可能在掃描範圍之外——通常是 <b>chart 距離設錯</b>或<b>場曲</b>把某區合焦推出範圍。
+此時擲 <code>E-F01</code>,提示檢查 chart 距離,而非默默回傳一個不可信的邊界值。</p>
+
+<figure>
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">
+  <line x1="70" y1="250" x2="600" y2="250" stroke="#3d4a56" stroke-width="1.5"/>
+  <line x1="70" y1="250" x2="70" y2="30" stroke="#3d4a56" stroke-width="1.5"/>
+  <text x="600" y="272" text-anchor="end" font-size="12" fill="#3d4a56">DAC</text>
+  <text x="60" y="40" text-anchor="end" font-size="12" fill="#3d4a56">focus value</text>
+  <!-- gaussian-ish fitted curve -->
+  <path d="M70,240 Q150,235 210,200 Q280,150 335,70 Q390,150 460,200 Q520,235 600,240"
+        fill="none" stroke="#8a5a00" stroke-width="2.5"/>
+  <!-- sample dots -->
+  <g fill="#0b5cad">
+    <circle cx="90" cy="238" r="4"/><circle cx="150" cy="228" r="4"/><circle cx="210" cy="200" r="4"/>
+    <circle cx="270" cy="150" r="4"/><circle cx="335" cy="72" r="4"/><circle cx="400" cy="150" r="4"/>
+    <circle cx="460" cy="200" r="4"/><circle cx="520" cy="230" r="4"/><circle cx="580" cy="240" r="4"/>
+  </g>
+  <!-- peak marker -->
+  <line x1="335" y1="70" x2="335" y2="250" stroke="#a01818" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <circle cx="335" cy="70" r="5" fill="#a01818"/>
+  <text x="345" y="66" font-size="12.5" font-weight="700" fill="#a01818">峰值 t* → peak_dac</text>
+  <!-- boundary guards -->
+  <line x1="120" y1="250" x2="120" y2="40" stroke="#0a6e35" stroke-width="1" stroke-dasharray="2 3"/>
+  <line x1="550" y1="250" x2="550" y2="40" stroke="#0a6e35" stroke-width="1" stroke-dasharray="2 3"/>
+  <text x="125" y="52" font-size="10.5" fill="#0a6e35">合格內界</text>
+  <text x="545" y="52" text-anchor="end" font-size="10.5" fill="#0a6e35">合格內界</text>
+</svg>
+<figcaption>藍點為 10 站 focus 量測(UI focus 面板上也是這些藍點),棕線為擬合多項式,
+紅線為密集掃描取得的峰值。峰值須落在綠色內界之間,否則 E-F01。</figcaption>
+</figure>
+
+<!-- ============================================================ -->
+<h2 id="s4"><span class="no">4</span>判定:截距 vs 峰值的一致性誤差</h2>
+<p class="src">實作:src/dcc_core/src/validate.cpp · <code>judge()</code> / <code>region_pass()</code></p>
+
+<p>兩具引擎各給出一個「合焦 DAC」:回歸截距 <code>b</code> 與 focus 峰值 <code>peak</code>。逐區的一致性誤差:</p>
+<div class="eq">err = | b − peak | / span&nbsp;&nbsp;&nbsp;&nbsp;<span class="lbl">// span = 掃描全幅(dac<sub>max</sub> − dac<sub>min</sub>),把誤差正規化成無量綱比例</span></div>
+<div class="eq">region PASS ⇔ err &lt; tolerance&nbsp;&nbsp;&nbsp; 整體 PASS ⇔ 所有區皆 PASS</div>
+<p>報告另取 <b>err 最大的三區</b>(排序後前三)供除錯定位(FR-17)。UI 誤差 heatmap 即以此 <code>err</code>
+上色(深綠→黃),超差區塗紅。</p>
+
+<div class="callout okbox"><span class="t">為什麼用 span 正規化</span>
+不同模組/不同掃描設定的 span 不同,除以 span 讓 <code>tolerance</code>(如 metal-shield 20%)成為
+跨設定可比的統一門檻,不必隨掃描範圍重調。</div>
+
+<!-- ============================================================ -->
+<h2 id="s5"><span class="no">5</span>數值穩定性與失敗碼一覽</h2>
+
+<div class="tablewrap">
+<table class="spec">
+  <tr><th>失敗碼</th><th>觸發條件</th><th>數學/物理原因</th><th>出處</th></tr>
+  <tr><td class="m">E-D01</td><td>dacs 與 disp/fv 長度不一致</td><td>閉環驗算失敗(資料組裝錯誤)</td><td class="m">regression / focus</td></tr>
+  <tr><td class="m">E-D03</td><td>有效樣本 &lt; 門檻;或 S<sub>xx</sub> ≤ 0;或擬合矩陣奇異(主元 &lt; 1e−14)</td>
+      <td>樣本退化,斜率/多項式係數無定義</td><td class="m">regression / focus</td></tr>
+  <tr><td class="m">E-E01</td><td>回歸斜率 k ≤ 0</td><td>DCC 恆正;非正代表 LEFT/RIGHT 定義反了</td><td class="m">regression</td></tr>
+  <tr><td class="m">E-F01</td><td>focus 峰值出界(貼掃描端點)</td><td>合焦點落在掃描範圍外——chart 距離錯或場曲</td><td class="m">focus</td></tr>
+</table>
+</div>
+
+<h3>數值穩定性設計摘要</h3>
+<ul class="tight">
+  <li><b>回歸單趟累加</b>:一次迴圈收 5 個矩,再還原中心化量,省一趟且與兩趟解代數等價。</li>
+  <li><b>回歸中心化</b>:用 <code>S<sub>xx</sub>=Σx²−(Σx)²/n</code> 去均值,避免大數相減的災難性抵消(尤其 disparity 均值不為零時)。</li>
+  <li><b>focus 座標正規化到 [−1,1]</b>:把 Vandermonde/正規方程的條件數從 ~10²⁰ 壓回可解範圍,是能用直接法解 5×5 的前提。</li>
+  <li><b>部分主元</b>:高斯消去選絕對值最大主元,控制捨入誤差;奇異即早停報 E-D03。</li>
+  <li><b>密集掃描取峰</b>:回傳範圍內全域最大,避開解析求導的多駐點辨識;0.1 DAC 解析度已優於 DAC 量化。</li>
+  <li><b>邊界防呆</b>:峰值貼邊直接 E-F01,不回傳不可信值——把「chart 沒擺好」變成明確錯誤而非隱性壞資料。</li>
+</ul>
+
+<div class="callout align"><span class="t">與其他文件的分工</span>
+本文件講「<b>引擎內部怎麼算</b>」。相鄰文件互補:<code>Sim工作台說明.html</code> 講合成資料的參數與物理意義、
+<code>focus曲線圖解說明.html</code> 講 focus 面板每個元素的來源鏈、<code>M0_階段報告 §8</code> 講回歸的
+<b>精度上限與誤差預算</b>(σ_k/k、EIV 偏差量級)——後者回答「這個 k 準到什麼程度」,本文件回答「這個 k 怎麼被算出來」。</div>
+
+</div>
+</body>
+</html>
