@@ -4,6 +4,7 @@
 > rev 2026-07-11(2):§3a 支援 SAD 細粒度輸出與聚合設定(median/加權平均,關閉開放問題 #5);RAW 改列唯讀選配輸入(UI 底圖)。
 > rev 2026-07-11(3):margin 預設定案 0.1;連動數值一律以公式參數化表述,範例值僅為預設 config 之推導示例。
 > rev 2026-07-13:num_positions 由固定 10 改為可設定(5..50,預設 10),並明訂與 min_valid_samples / focus.poly_order / peak_margin_steps 之交叉約束(loader 於載入即檢核,E-A01)。
+> rev 2026-07-15:新增 §3a.1 quality 數值語意**提案**(值域 [0,1]、σ 之單調遞減代理、建議標定 q ∝ 1/σ²),作為 M2 與外部 SAD 模組格式凍結之談判基準;Sim 端同步新增 focus_linked 合成模型(SPEC-005 §2)。
 
 ## 1. 檔案佈局
 
@@ -75,11 +76,31 @@ data/output/<module_id>/report.json / report.md / block.bin
 | grid_w / grid_h | int | 外部 SAD 之輸出粒度,**可 ≠ `dcc.grid`**(如 pattern block 級 144×108);≠ 時依 SPEC-002 D-5 聚合至 8×6 |
 | data | [N][grid_h][grid_w] float\|null | disparity;無效樣本以 null |
 | focus | [N][grid_h][grid_w] float | 逐 cell focus value(梯度能量等;Phase F 僅用峰值位置,量綱不拘但同序列內須一致;與 disparity 同規則聚合)|
-| quality | 同 data shape(選填) | 品質指標(門檻判定於外部完成;data 為 null 即無效;`weighted_mean` 聚合時作權重,缺則等權)|
+| quality | 同 data shape(選填) | 品質指標(數值語意見 §3a.1;門檻判定於外部完成;data 為 null 即無效;`weighted_mean` 聚合時作權重,缺則等權)|
 | meta(選填) | dict | 曝光、溫度、治具 ID 等追溯資訊 |
 
 讀取驗證規則見 SPEC-002 Phase D(E-D01/E-D02);讀取端即轉為 raw_pixel;
 粒度聚合(median / quality 加權平均,config `aggregation.*`)見 SPEC-002 D-5。
+
+### 3a.1 quality 數值語意(提案,待 M2 與外部 SAD 模組凍結)
+
+> 本節為**本工具端之語意提案**,目的是讓格式凍結談判有具體基準;
+> 定案前外部模組之實際標定可能不同,凍結時以對照表記錄差異並修訂本節。
+
+- **值域 [0,1]**,float;`1.0` = 最高信心、`0.0` = 不可信。
+- **語意**:該 cell disparity 量測標準差 σ 的**單調遞減代理**;
+  建議標定 **q ∝ 1/σ²**(資訊權重)——如此 `weighted_mean` 聚合即為最小變異加權,
+  M2 之 WLS/EIV fitter(SPEC-005 §8 #2)可直接以 q 推每樣本權重/σ。
+- **跨幀跨區可比**:同一序列內須同一標定,**不得逐幀重正規化**
+  (否則權重跨幀失義,聚合與加權回歸皆被破壞)。
+- **門檻剔除於外部完成**:低於外部信心門檻者應直接輸出 `data = null`,
+  而非僅給低 q(本工具不做門檻判定;q = 0 之 cell 於 `weighted_mean` 權重為零,效果等同剔除)。
+- **本工具消費點**(現況):僅 SPEC-002 D-5 聚合(序列 grid ≠ `dcc.grid` 時);
+  grid 相同時 D-5 跳過,quality 僅原樣進 report 供追溯。
+- **物理直覺**(供外部對齊):SAD 信心與紋理對比正相關——離焦越大、影像越糊、
+  視差越不可靠;離軸(MTF 下降/vignette)亦然。Sim 端之 `focus_linked` 模型
+  (SPEC-005 §2)即以此語意產生示例資料:q 與 focus 曲線同源、含徑向衰減,
+  且合成噪聲 σ_eff = σ₀/√q 與 q 自洽(「誠實」原則),作為 M2 fitter 之驗收基準。
 
 ## 4. 校正 Block(v4 精神,開發版 layout)
 

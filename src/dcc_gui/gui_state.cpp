@@ -130,6 +130,9 @@ bool GuiState::save_session(const std::string& path) {
     s["focus_peak_offset"] = spec.focus_peak_offset;
     s["field_curvature"] = spec.field_curvature;
     s["focus_amp_falloff"] = spec.focus_amp_falloff;
+    s["quality_model"] = static_cast<int>(spec.quality_model);
+    s["q_falloff"] = spec.q_falloff;
+    s["q_null_th"] = spec.q_null_th;
     s["fine_grid"] = fine_grid;
     s["null_frames"] = null_frames;
     j["scan"] = {{"range", scan_range}, {"steps", scan_steps}};
@@ -163,6 +166,11 @@ bool GuiState::load_session(const std::string& path) {
     spec.focus_peak_offset = s.value("focus_peak_offset", 0.0);
     spec.field_curvature = s.value("field_curvature", 0.0);
     spec.focus_amp_falloff = s.value("focus_amp_falloff", 0.0);
+    const int qm = s.value("quality_model", 0);
+    spec.quality_model = (qm >= 0 && qm <= 2) ? static_cast<dcc::sim::QualityModel>(qm)
+                                              : dcc::sim::QualityModel::off;
+    spec.q_falloff = s.value("q_falloff", 0.0);
+    spec.q_null_th = s.value("q_null_th", 0.0);
     fine_grid = s.value("fine_grid", false);
     null_frames = s.value("null_frames", 0);
     if (j.contains("scan")) {

@@ -31,10 +31,14 @@ std::string seq_filename(const GuiState& s) {
   const std::time_t t = std::time(nullptr);
   std::strftime(ts, sizeof(ts), "%Y%m%d-%H%M%S", std::localtime(&t));
   char buf[256];
-  std::snprintf(buf, sizeof(buf), "disp_seq_s%.2f_b%.2f_sd%u_fc%.0f_%dx%d%s_%s.json",
+  const char* qsuf = (s.spec.quality_model == dcc::sim::QualityModel::focus_linked) ? "_qfl"
+                     : (s.spec.quality_model == dcc::sim::QualityModel::constant)   ? "_q1"
+                                                                                    : "";
+  std::snprintf(buf, sizeof(buf), "disp_seq_s%.2f_b%.2f_sd%u_fc%.0f_%dx%d%s%s_%s.json",
                 s.spec.noise_sigma, s.spec.bias, s.spec.seed, s.spec.focus_center,
                 s.spec.grid_w, s.spec.grid_h,
-                s.null_frames > 0 ? ("_null" + std::to_string(s.null_frames)).c_str() : "", ts);
+                s.null_frames > 0 ? ("_null" + std::to_string(s.null_frames)).c_str() : "",
+                qsuf, ts);
   return buf;
 }
 
@@ -69,6 +73,25 @@ void draw_sim_panel(GuiState& s) {
   ImGui::SameLine();
   ImGui::TextDisabled("(逐區 → err 徑向圖樣)");
   ch |= slider_d("focus 角落振幅衰減", &s.spec.focus_amp_falloff, 0.0f, 0.9f, "%.2f");
+
+  // quality 面(SPEC-004 §3a.1 語意提案;M2 格式凍結談判基準)
+  {
+    const char* qm_items[] = {"off(無 quality 面)", "const(定值 1.0)",
+                              "focus_linked(對比代理)"};
+    int qm = static_cast<int>(s.spec.quality_model);
+    if (ImGui::Combo("quality 模型", &qm, qm_items, 3)) {
+      s.spec.quality_model = static_cast<dcc::sim::QualityModel>(qm);
+      ch = true;
+    }
+    if (s.spec.quality_model == dcc::sim::QualityModel::focus_linked) {
+      ch |= slider_d("q 徑向衰減 q_falloff", &s.spec.q_falloff, 0.0f, 0.9f);
+      ch |= slider_d("q 掉樣門檻 q_null_th", &s.spec.q_null_th, 0.0f, 0.7f);
+      ImGui::SameLine();
+      ImGui::TextDisabled("(0.4 → 端點 2 幀;0.6 → 4 幀 E-D03)");
+      ImGui::TextDisabled("σ_eff = σ/√q(誠實);權重消費:細粒度 + Config 之 weighted_mean");
+    }
+  }
+
   ch |= ImGui::Checkbox("以 144×108 細粒度輸出(行使 D-5 聚合)", &s.fine_grid);
   ch |= ImGui::SliderInt("角落區 (5,7) null 幀數", &s.null_frames, 0, 5);
   ImGui::SameLine();

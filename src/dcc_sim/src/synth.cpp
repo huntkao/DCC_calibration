@@ -41,7 +41,10 @@ std::string generate(const SynthSpec& s) {
   const double half_span = 0.5 * static_cast<double>(s.dacs.back() - s.dacs.front());
 
   std::mt19937 rng(s.seed);
-  std::normal_distribution<double> gauss(0.0, s.noise_sigma);
+  // N(0,1) × σ_eff:與 N(0,σ) 等值同流(σ 逐 cell 隨 q 變,見下)。
+  std::normal_distribution<double> gauss01(0.0, 1.0);
+  const bool with_q = s.quality_model != QualityModel::off;
+  const bool q_linked = s.quality_model == QualityModel::focus_linked;
 
   const auto is_null = [&](size_t f, int r, int c) {
     for (const auto& [nf, nr, nc] : s.null_cells)
@@ -58,7 +61,7 @@ std::string generate(const SynthSpec& s) {
   j["grid_h"] = s.grid_h;
   j["data"] = json::array();
   j["focus"] = json::array();
-  if (s.with_quality) j["quality"] = json::array();
+  if (with_q) j["quality"] = json::array();
 
   for (size_t f = 0; f < s.dacs.size(); ++f) {
     const double dac = static_cast<double>(s.dacs[f]);
@@ -70,15 +73,21 @@ std::string generate(const SynthSpec& s) {
         //  · 均勻 offset(focus_peak_offset)→ b 與 peak 全區同步分歧
         //  · 徑向場曲(field_curvature)→ 各區合焦位置不同 → err 徑向圖樣(實機主導)
         //  · 角落振幅衰減(focus_amp_falloff)→ 離軸 MTF/vignette,僅影響曲線高低外觀
+        const double rad = radial_dist(r, c, s.grid_w, s.grid_h);
         const double peak_rc = true_focus_peak(r, c, s.grid_w, s.grid_h, s.focus_center,
                                                s.focus_peak_offset, s.field_curvature);
         const double t = (dac - peak_rc) / half_span;
-        const double amp =
-            1000.0 * (1.0 - s.focus_amp_falloff * radial_dist(r, c, s.grid_w, s.grid_h));
+        const double amp = 1000.0 * (1.0 - s.focus_amp_falloff * rad);
         frow.push_back(amp * std::exp(-t * t));
-        if (s.with_quality) qrow.push_back(1.0);
 
-        if (is_null(f, r, c)) {
+        // quality(SPEC-004 §3a.1 語意提案):SAD 信心 ∝ 紋理對比 →
+        // 與 focus 曲線同源(離焦遞減)× 徑向衰減(離軸)。
+        double q = 1.0;
+        if (q_linked) q = std::clamp(std::exp(-t * t) * (1.0 - s.q_falloff * rad), 0.0, 1.0);
+        if (with_q) qrow.push_back(q);
+
+        // 掉樣:顯式注入(null_cells)或外部門檻剔除模擬(q < q_null_th)。
+        if (is_null(f, r, c) || (q_linked && q < s.q_null_th)) {
           drow.push_back(nullptr);
           continue;
         }
@@ -89,17 +98,23 @@ std::string generate(const SynthSpec& s) {
         if (s.nonlinearity != 0.0 || s.s_curve != 0.0)
           d *= 1.0 + s.nonlinearity * un - s.s_curve * un * un;
         d += s.bias;
-        if (s.noise_sigma > 0.0) d += gauss(rng);
+        if (s.noise_sigma > 0.0) {
+          // 誠實原則:q ∝ 1/σ² → σ_eff = σ₀/√q(下限 0.05 防爆);
+          // 使 quality「說多大噪聲就真的多大」,M2 WLS/EIV 才驗得出增益。
+          const double sig = q_linked ? s.noise_sigma / std::sqrt(std::max(q, 0.05))
+                                      : s.noise_sigma;
+          d += sig * gauss01(rng);
+        }
         if (s.unit == "pd_image_grid") d = units::raw_px_to_pd_grid(d, s.pitch_x);
         drow.push_back(d);
       }
       disp_rows.push_back(drow);
       focus_rows.push_back(frow);
-      if (s.with_quality) qual_rows.push_back(qrow);
+      if (with_q) qual_rows.push_back(qrow);
     }
     j["data"].push_back(disp_rows);
     j["focus"].push_back(focus_rows);
-    if (s.with_quality) j["quality"].push_back(qual_rows);
+    if (with_q) j["quality"].push_back(qual_rows);
   }
   return j.dump();
 }

@@ -10,6 +10,16 @@
 
 namespace dcc::sim {
 
+// quality 面合成模型(SPEC-004 §3a.1 語意提案、SPEC-005 §2)。
+enum class QualityModel {
+  off,           // 不輸出 quality 面(預設,維持既有行為)
+  constant,      // 定值 1.0(僅測 shape/等權聚合路徑)
+  focus_linked,  // q = clamp(exp(−t²)·(1−q_falloff·radial), 0, 1),t 與 focus 曲線同源
+                 // (SAD 信心 ∝ 紋理對比 → 離焦/離軸遞減);
+                 // 噪聲掛鉤 σ_eff = σ₀/√max(q,0.05)(q ∝ 1/σ² 之誠實原則,
+                 // M2 WLS/EIV fitter 驗收基準);q < q_null_th → data 記 null。
+};
+
 struct SynthSpec {
   std::string module_id = "SIM0001";
   std::vector<int> dacs;              // 必填(通常來自 sweep::plan)
@@ -38,7 +48,11 @@ struct SynthSpec {
                                       //  僅影響曲線高低外觀,不改峰值位置/err——峰由 argmax 決定)
   unsigned seed = 0;                  // 雜訊種子(確定性)
   std::vector<std::tuple<int, int, int>> null_cells;  // (frame, r, c) → null
-  bool with_quality = false;          // 輸出 quality 面(定值 1.0)
+  QualityModel quality_model = QualityModel::off;  // quality 面模型(見 enum 註解)
+  double q_falloff = 0.0;             // 徑向信心衰減 0..1(離軸 MTF/vignette;角落 q ×(1−此值))
+  double q_null_th = 0.0;             // q < 門檻 → data 記 null(模擬外部門檻剔除;
+                                      //  quality 面仍記 q 供追溯。0 = 不掉樣;
+                                      //  預設 sweep 下 0.4 → 端點 2 幀、0.6 → 4 幀 → E-D03)
 };
 
 // 正規化徑向距離:grid 中心 = 0,四角 = 1。

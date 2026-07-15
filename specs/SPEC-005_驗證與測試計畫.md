@@ -4,6 +4,7 @@
 > rev 2026-07-11(2):關閉開放問題 #5(SAD 粒度可設定 + median/加權聚合),新增 UT-10。
 > rev 2026-07-11(3):margin 預設定案 0.1;UT-01/06、IT-04、§3a 誤差預算改公式參數化並依預設 config 重推示例數字。
 > rev 2026-07-11(4):§7 開放問題 #1/#2/#4 標註延期至 M2 前、#3 轉為 M1 後分析任務——M0 出場準則(§6)之「明確延期」條件成立,不卡 M1 開發。
+> rev 2026-07-15:§2 新增 quality 合成模型(off/const/focus_linked;q 與 focus 同源、σ_eff = σ₀/√q 掛鉤、q_null_th 掉樣),對應 SPEC-004 §3a.1 語意提案;測試 tag [sim][quality]。
 
 ## 1. 測試層級
 
@@ -23,6 +24,12 @@
   - 可注入:disparity 高斯雜訊 σ_d、系統性 bias、無效樣本(null)、
     DAC 清單擾動/亂序、單位欄位錯置(供負向測試)。
   - 可指定輸出粒度(8×6 或細粒度如 144×108)以測試 D-5 聚合。
+  - quality 面(SPEC-004 §3a.1 語意提案之示例來源;tag [sim][quality]):
+    `off`(無 quality 面,預設)/ `const`(定值 1.0)/ `focus_linked` —
+    `q = clamp(exp(−t²)·(1 − q_falloff·radial), 0, 1)`(t 與 focus 曲線同源);
+    **噪聲掛鉤** σ_eff = σ₀/√max(q, 0.05) 使 q 誠實反映量測變異
+    (M2 WLS/EIV fitter 之驗收基準);`q < q_null_th` → data 記 null
+    (模擬外部門檻剔除,離焦端點先掉樣 → 運動 min_valid_samples/E-D03)。
 - 無雜訊序列之解析真值:**k = true_dcc、b = 420、focus 峰值 = 420**
   (UT-05/06 之準則依此;交叉驗證誤差之非零情境由注入 bias 建構)。
 - [M2 備忘] RAW 級合成器(chart 紋理、SimMotor 磁滯、SimCapture 飽和故障)

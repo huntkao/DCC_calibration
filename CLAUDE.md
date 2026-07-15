@@ -16,13 +16,13 @@ RAW 由外部擷取模組提供,本工具**唯讀**載入作互動式 UI 底圖(
 
 實作語言 **C++17**;GUI = Dear ImGui v1.91.9b-docking + ImPlot v0.17 + GLFW 3.4
 (FetchContent 鎖版;RAW 檢視為 ImPlot 自製,未用 TexInspect——理由見開發紀錄 §2.5)。
-測試 = Catch2(56 案例全綠)。CLI(dcc_cal)與 GUI(dcc_gui)能力等價(解耦試金石)。
+測試 = Catch2(65 案例全綠)。CLI(dcc_cal)與 GUI(dcc_gui)能力等價(解耦試金石)。
 規格變更仍走 spec 勘誤流程(改檔 + 頂部 revision 一行)。
 
 ### 跨機器上手(換手第一件事)
 ```
 cmake -S . -B build -G Ninja && cmake --build build   # 首次需網路拉依賴
-ctest --test-dir build                                # 應 56/56 綠
+ctest --test-dir build                                # 應 65/65 綠
 ./build/src/dcc_cli/dcc_cal --dry-run                 # CLI 驗證
 ./build/src/dcc_gui/dcc_gui --smoke                   # GUI 煙霧測試(隱藏視窗)
 ```

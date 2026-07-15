@@ -252,12 +252,131 @@ TEST_CASE("field_curvature:err 呈徑向圖樣(中央小、角落大),均勻 off
 TEST_CASE("sim::pretty:縮排輸出為合法 JSON 且與原始內容等值", "[sim][pretty]") {
   const auto cfg = app_cfg();
   auto spec = base_spec(cfg);
-  spec.with_quality = true;
+  spec.quality_model = dcc::sim::QualityModel::constant;
   spec.null_cells = {{0, 0, 0}};  // 含 null 也要等值
   const std::string compact = generate(spec);
   const std::string pretty_text = dcc::sim::pretty(compact);
   REQUIRE(nlohmann::json::parse(pretty_text) == nlohmann::json::parse(compact));
   REQUIRE(pretty_text.find("\n      [") != std::string::npos);  // 每列一行之結構
+}
+
+TEST_CASE("sim quality:focus_linked 之 q 在 [0,1]、隨離焦單調遞減、含徑向衰減",
+          "[sim][quality]") {
+  const auto cfg = app_cfg();
+  auto spec = base_spec(cfg);
+  spec.quality_model = dcc::sim::QualityModel::focus_linked;
+  spec.q_falloff = 0.5;
+  const auto j = nlohmann::json::parse(generate(spec));
+
+  REQUIRE(j.contains("quality"));
+  REQUIRE(j["quality"].size() == 10);
+
+  // 全值域 [0,1]。
+  for (const auto& frame : j["quality"])
+    for (const auto& row : frame)
+      for (const auto& v : row) {
+        REQUIRE(v.get<double>() >= 0.0);
+        REQUIRE(v.get<double>() <= 1.0);
+      }
+
+  // 單調性(SPEC-004 §3a.1:q 為 σ 之單調遞減代理 → 隨離焦遞減):
+  // 合焦 420 落在 f=4(dac≈393)與 f=5 之間 → FAR 端 f=0..4 遞增、NEAR 端 f=5..9 遞減。
+  const auto q_at = [&](size_t f, int r, int c) {
+    return j["quality"][f][static_cast<size_t>(r)][static_cast<size_t>(c)].get<double>();
+  };
+  for (size_t f = 0; f < 4; ++f) REQUIRE(q_at(f, 2, 3) < q_at(f + 1, 2, 3));
+  for (size_t f = 5; f < 9; ++f) REQUIRE(q_at(f, 2, 3) > q_at(f + 1, 2, 3));
+
+  // 徑向衰減:角落 q < 中央 q(同幀;q_falloff=0.5 → 角落 ×0.5)。
+  for (size_t f = 0; f < 10; ++f) REQUIRE(q_at(f, 0, 0) < q_at(f, 2, 3));
+}
+
+TEST_CASE("sim quality:q_null_th 造成離焦端點掉樣——th=0.4 恰 2 幀仍 PASS、th=0.6 → E-D03",
+          "[sim][quality]") {
+  const auto cfg = app_cfg();
+  auto spec = base_spec(cfg);
+  spec.quality_model = dcc::sim::QualityModel::focus_linked;
+  spec.q_falloff = 0.0;  // 全區同 q,掉樣幀數跨區一致
+
+  // th=0.4:僅端點 |t|=1(q=e⁻¹≈0.368)掉樣 → 每區 2 幀 null、8 幀有效 = min_valid_samples。
+  spec.q_null_th = 0.4;
+  const auto j = nlohmann::json::parse(generate(spec));
+  int nulls = 0;
+  for (const auto& frame : j["data"])
+    for (const auto& row : frame)
+      for (const auto& v : row)
+        if (v.is_null()) ++nulls;
+  REQUIRE(nulls == 2 * 48);                     // 首尾幀 × 48 區
+  REQUIRE_FALSE(j["quality"][0][0][0].is_null());  // quality 面仍滿 shape(記錄 q 供追溯)
+
+  const auto ok = dcc::app::run_session(cfg, generate(spec), "");
+  REQUIRE(ok.completed);
+  REQUIRE(ok.pass);
+
+  // th=0.6:|t|≥0.78 之 4 幀掉樣 → 有效 6 < 8 → E-D03。
+  spec.q_null_th = 0.6;
+  const auto bad = dcc::app::run_session(cfg, generate(spec), "");
+  REQUIRE_FALSE(bad.completed);
+  REQUIRE(bad.error_code == "E-D03");
+}
+
+TEST_CASE("sim quality:噪聲掛鉤 σ_eff = σ₀/√q——端點幀殘差 std ≈ 中間幀 ×1.64(誠實原則)",
+          "[sim][quality]") {
+  const auto cfg = app_cfg();
+  auto spec = base_spec(cfg);
+  spec.quality_model = dcc::sim::QualityModel::focus_linked;
+  spec.q_falloff = 0.0;
+  spec.noise_sigma = 0.5;
+  spec.seed = 7;
+  spec.grid_w = 144;  // 細粒度 → 每幀 15552 樣本,std 估計相對誤差 ~0.6%
+  spec.grid_h = 108;
+  const auto j = nlohmann::json::parse(generate(spec));
+
+  // 殘差 = d − 真值;逐幀樣本 std。
+  const auto frame_std = [&](size_t f) {
+    const double dac = j["dacs"][f].get<double>();
+    double sum = 0.0, sum2 = 0.0;
+    int n = 0;
+    for (int r = 0; r < 108; ++r)
+      for (int c = 0; c < 144; ++c) {
+        const double k = true_dcc(r, c, 144, 108, 12.46, 14.5);
+        const double res =
+            j["data"][f][static_cast<size_t>(r)][static_cast<size_t>(c)].get<double>() -
+            (dac - 420.0) / k;
+        sum += res;
+        sum2 += res * res;
+        ++n;
+      }
+    return std::sqrt(sum2 / n - (sum / n) * (sum / n));
+  };
+
+  // f=0:t=−1 → q≈0.368 → σ_eff≈0.824;f=4:t≈−0.11 → q≈0.987 → σ_eff≈0.503。
+  const double ratio = frame_std(0) / frame_std(4);
+  REQUIRE(ratio > 1.45);
+  REQUIRE(ratio < 1.85);
+}
+
+TEST_CASE("sim quality:細粒度 + weighted_mean + focus_linked 全管線 → PASS 且 DCC 準",
+          "[sim][quality]") {
+  auto cfg = app_cfg();
+  cfg.agg_method = dcc::aggregate::Method::weighted_mean;  // quality 作 D-5 聚合權重
+  auto spec = base_spec(cfg);
+  spec.quality_model = dcc::sim::QualityModel::focus_linked;
+  spec.q_falloff = 0.3;
+  spec.q_null_th = 0.4;  // 端點掉樣 → 聚合端 NaN 傳播亦被運動
+  spec.noise_sigma = 0.3;
+  spec.seed = 3;
+  spec.grid_w = 144;
+  spec.grid_h = 108;
+
+  const auto res = dcc::app::run(cfg, generate(spec), kFlatGain, kFlatGain);
+  REQUIRE(res.pass);
+  for (int r = 0; r < 6; ++r)
+    for (int c = 0; c < 8; ++c) {
+      const auto& reg = res.regions[static_cast<size_t>(r) * 8 + static_cast<size_t>(c)];
+      const double truth = true_dcc(r, c, 8, 6, 12.46, 14.5);  // 區中心近似
+      REQUIRE(std::fabs(reg.dcc_raw_px - truth) / truth < 0.05);
+    }
 }
 
 TEST_CASE("IT-06: 同一序列重跑,報告 bit-exact 一致", "[it06]") {
