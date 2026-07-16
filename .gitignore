@@ -17,5 +17,6 @@ __pycache__/
 build/
 build-win/
 imgui.ini
+seqview_imgui.ini
 logs/
 session.json
