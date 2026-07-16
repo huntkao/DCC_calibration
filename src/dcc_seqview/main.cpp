@@ -80,7 +80,12 @@ int main(int argc, char** argv) {
 
   bool light_theme = true;  // 預設淡色調(與 dcc_gui 一致)
   dcc::guicommon::apply_theme(light_theme);
-  for (const auto& m : dcc::guicommon::load_cjk_font()) std::fprintf(stderr, "%s\n", m.c_str());
+  // 字型訊息:成功載入為資訊(→ stdout),僅 [warn](找不到字型)進 stderr,
+  // 避免正常路徑的成功訊息在終端機看起來像錯誤。
+  for (const auto& m : dcc::guicommon::load_cjk_font()) {
+    const bool is_warn = m.rfind("[warn]", 0) == 0;
+    std::fprintf(is_warn ? stderr : stdout, "%s\n", is_warn ? m.c_str() + 7 : m.c_str());
+  }
 
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 150");
