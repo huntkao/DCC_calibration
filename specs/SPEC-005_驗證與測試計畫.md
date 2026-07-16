@@ -7,6 +7,7 @@
 > rev 2026-07-15:§2 新增 quality 合成模型(off/const/focus_linked;q 與 focus 同源、σ_eff = σ₀/√q 掛鉤、q_null_th 掉樣),對應 SPEC-004 §3a.1 語意提案;測試 tag [sim][quality]。
 > rev 2026-07-16:§7 開放問題 #4 改性質(EEPROM 假設格式轉正、Qualcomm 對齊改條件式);
 > §3 測試對映新增 eeprom_equiv(block.json/txt 等價閉環)與五檔落盤 IT 補充。
+> rev 2026-07-16(2):M1 驗收盤點補 FR-15 平滑性警告測試對映(原實作存在但無專屬案例)。
 
 ## 1. 測試層級
 
@@ -52,6 +53,7 @@
 | UT-09 | 單位(SPEC-004 §3) | dcc_pd_grid / dcc_raw_px == pitch_x;對漏乘(≈1)/重複乘(≈pitch_x²)正確示警 |
 | UT-10 | 粒度聚合(D-5) | 無雜訊細粒度(144×108)序列經 median 與 weighted_mean 聚合,結果皆與直接 8×6 序列一致(<1e-9);區內有效 cell 比例 0.49/0.50 邊界判定正確 |
 | UT-補充 | eeprom_equiv(2026-07-16) | block.json/txt 與 `eeprom::pack()` 同源:encoded hex 與 `encode_q` 一致、checksum 與 pack 尾 byte 一致、layout bytes 總和 == block.bin 長度(993);假設模組基準值 12.46 → 0x031D 閉環 |
+| UT-補充 | 平滑性警告(FR-15,2026-07-16) | 預設梯度(相鄰差 ~2-4%)於 smooth_limit 0.25 下不誤報;門檻壓至 0.01 觸發警告(含區座標),且模組判定仍 PASS(警告不 FAIL) |
 
 ## 3a. 誤差預算(外部 SAD 模組之 disparity 精度要求)
 

@@ -131,6 +131,30 @@ TEST_CASE("OQ#3 靈敏度:非線性 nl=0.05 下,合焦偏移 ±40 DAC 使中央 
   REQUIRE(std::fabs(100.0 * (m_lin - m_lin0) / m_lin0) < 0.1);
 }
 
+TEST_CASE("FR-15 平滑性:預設門檻無警告;門檻壓低 → 警告列座標且模組仍 PASS", "[fr15]") {
+  auto cfg = app_cfg();
+  const auto has_smooth_warning = [](const dcc::app::RunResult& r) {
+    for (const auto& w : r.warnings)
+      if (w.find("平滑性") != std::string::npos) return true;
+    return false;
+  };
+
+  // 預設梯度(中央 12.46 → 角落 14.5)相鄰差 ~2-4% << 0.25 → 不得誤報。
+  const auto res = dcc::app::run(cfg, generate(base_spec(cfg)), kFlatGain, kFlatGain);
+  REQUIRE(res.pass);
+  REQUIRE_FALSE(has_smooth_warning(res));
+
+  // 門檻壓至 1% → 同一梯度必觸發;FR-15 為警告性質,判定仍 PASS。
+  cfg.smooth_limit = 0.01;
+  const auto warned = dcc::app::run(cfg, generate(base_spec(cfg)), kFlatGain, kFlatGain);
+  REQUIRE(warned.pass);
+  REQUIRE(has_smooth_warning(warned));
+  bool has_coord = false;
+  for (const auto& w : warned.warnings)
+    if (w.find("平滑性:區 (") != std::string::npos) has_coord = true;
+  REQUIRE(has_coord);
+}
+
 TEST_CASE("S 型非線性(nl3):視差對離焦為奇函數;不對稱項(nl2)則否", "[scurve]") {
   const auto cfg = app_cfg();
   // 預設 dacs 對 420 對稱(180+660=840)→ 幀 f 與幀 9−f 之離焦互為相反數。
