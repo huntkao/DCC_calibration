@@ -594,16 +594,9 @@ void draw_report(GuiState& s) {
   ImGui::InputText("##outdir", out_dir, sizeof(out_dir));
   ImGui::SameLine();
   const auto do_write = [&]() {
-    namespace fs = std::filesystem;
-    fs::create_directories(out_dir);
-    std::ofstream(std::string(out_dir) + "/report.json") << s.report_json;
-    std::ofstream(std::string(out_dir) + "/report.md")
-        << dcc::app::build_report_md(s.cfg, s.result);
-    std::ofstream blk(std::string(out_dir) + "/block.bin", std::ios::binary);
-    blk.write(reinterpret_cast<const char*>(s.result.block.data()),
-              static_cast<std::streamsize>(s.result.block.size()));
+    dcc::app::write_output_files(out_dir, s.cfg, s.result, s.report_json);
     s.log_add(LogLevel::info, std::string("報告已落盤:") + out_dir +
-                                  "/report.{json,md} + block.bin");
+                                  "/report.{json,md} + block.{bin,json,txt}");
   };
   if (ImGui::Button("報告落盤")) {
     if (std::filesystem::exists(std::string(out_dir) + "/report.json"))

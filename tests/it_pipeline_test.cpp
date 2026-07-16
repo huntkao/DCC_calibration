@@ -2,7 +2,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <nlohmann/json.hpp>
+#include <vector>
 
 #include "dcc_app/session.hpp"
 #include "dcc_core/sweep.hpp"
@@ -424,4 +427,23 @@ TEST_CASE("IT-07: 誤差預算閉環——σ=0.5、bias=0.3 蒙地卡羅×10:中
 
   REQUIRE(cv < 0.02);                              // NFR-02
   REQUIRE(std::fabs(mean - truth) / truth < 0.03); // IT-01 準確度(含 bias 情境)
+}
+
+TEST_CASE("IT: 落盤五檔齊全且 block.json 與 block.bin 等價(checksum/長度閉環)", "[it_out]") {
+  const auto cfg = app_cfg();
+  const auto dir = tmp_dir("it_out5");
+  const auto out = dcc::app::run_session(cfg, generate(base_spec(cfg)), dir.string());
+  REQUIRE(out.completed);
+  for (const char* f : {"report.json", "report.md", "block.bin", "block.json", "block.txt"})
+    REQUIRE(fs::exists(dir / f));
+
+  std::ifstream blk(dir / "block.bin", std::ios::binary);
+  const std::vector<char> bin((std::istreambuf_iterator<char>(blk)),
+                              std::istreambuf_iterator<char>());
+  std::ifstream bj(dir / "block.json");
+  const auto j = nlohmann::json::parse(bj);
+  REQUIRE(j["total_bytes"].get<size_t>() == bin.size());
+  REQUIRE(j["checksum"]["value"].get<int>() ==
+          static_cast<int>(static_cast<unsigned char>(bin.back())));
+  REQUIRE(j["dcc"]["unit"] == "DAC/raw_pixel");  // config 預設 output_disparity_unit
 }

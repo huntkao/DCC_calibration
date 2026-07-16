@@ -33,6 +33,12 @@ struct RunResult {
   std::vector<dcc::validate::WorstRegion> worst;
   std::vector<std::string> warnings;     // r² / 平滑性(FR-15)
   std::vector<std::uint8_t> block;       // 校正 block(依 output_disparity_unit)
+
+  // Phase G 打包輸入回聲(可讀等價檔 block.json/txt 用;單位已依 output_disparity_unit 轉出)
+  std::vector<double> dcc_out;
+  std::string dcc_out_unit;            // "DAC/raw_pixel" | "DAC/pd_image_grid"
+  std::vector<double> gain_l, gain_r;  // 線性增益
+  int gain_w = 0, gain_h = 0;
 };
 
 // 執行 A→G;任何 Phase 失敗以 DccError 上拋(現場落盤由 session 層負責)。

@@ -7,6 +7,7 @@
 
 #include "dcc_core/error.hpp"
 #include "dcc_core/units.hpp"
+#include "dcc_io/eeprom_equiv.hpp"
 
 namespace dcc::app {
 
@@ -92,6 +93,24 @@ std::string build_report_md(const dcc::io::AppConfig& cfg, const RunResult& res)
   return md;
 }
 
+void write_output_files(const std::string& out_dir, const dcc::io::AppConfig& cfg,
+                        const RunResult& res, const std::string& report_json) {
+  namespace fs = std::filesystem;
+  fs::create_directories(out_dir);
+  write_file(fs::path(out_dir) / "report.json", report_json);
+  write_file(fs::path(out_dir) / "report.md", build_report_md(cfg, res));
+  std::ofstream blk(fs::path(out_dir) / "block.bin", std::ios::binary);
+  blk.write(reinterpret_cast<const char*>(res.block.data()),
+            static_cast<std::streamsize>(res.block.size()));
+  const dcc::io::BlockEquivMeta meta{res.module_id, cfg.hash, res.dcc_out_unit};
+  write_file(fs::path(out_dir) / "block.json",
+             dcc::io::build_block_json(meta, res.gain_l, res.gain_r, res.gain_w, res.gain_h,
+                                       res.dcc_out, cfg.grid_w, cfg.grid_h, cfg.q_format));
+  write_file(fs::path(out_dir) / "block.txt",
+             dcc::io::build_block_txt(meta, res.gain_l, res.gain_r, res.gain_w, res.gain_h,
+                                      res.dcc_out, cfg.grid_w, cfg.grid_h, cfg.q_format));
+}
+
 SessionOutcome run_session(const dcc::io::AppConfig& cfg, const std::string& disp_seq_json,
                            const std::string& out_dir, dcc::io::Logger* logger) {
   namespace fs = std::filesystem;
@@ -111,14 +130,7 @@ SessionOutcome run_session(const dcc::io::AppConfig& cfg, const std::string& dis
                   std::string("run 完成:") + (res.pass ? "PASS" : "FAIL(誤差超容差)") +
                       ",module=" + res.module_id);
     }
-    if (!out_dir.empty()) {
-      fs::create_directories(out_dir);
-      write_file(fs::path(out_dir) / "report.json", out.report_json);
-      write_file(fs::path(out_dir) / "report.md", build_report_md(cfg, res));
-      std::ofstream blk(fs::path(out_dir) / "block.bin", std::ios::binary);
-      blk.write(reinterpret_cast<const char*>(res.block.data()),
-                static_cast<std::streamsize>(res.block.size()));
-    }
+    if (!out_dir.empty()) write_output_files(out_dir, cfg, res, out.report_json);
   } catch (const DccError& e) {
     // 鐵律 4:先落盤現場資料再回報。
     out.error_code = to_string(e.code());

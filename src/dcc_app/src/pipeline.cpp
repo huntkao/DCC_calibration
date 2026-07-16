@@ -99,6 +99,14 @@ RunResult run(const dcc::io::AppConfig& cfg, const std::string& disp_seq_json,
                                 cfg.q_format);
   if (!dcc::eeprom::verify(res.block))
     throw DccError(ErrorCode::E_G01, "block 回讀驗證失敗");
+
+  res.dcc_out = std::move(dcc_out);
+  res.dcc_out_unit = (cfg.output_disparity_unit == "pd_image_grid") ? "DAC/pd_image_grid"
+                                                                    : "DAC/raw_pixel";
+  res.gain_l = gain_l;
+  res.gain_r = gain_r;
+  res.gain_w = gain_w;
+  res.gain_h = gain_h;
   return res;
 }
 

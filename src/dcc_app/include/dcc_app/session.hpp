@@ -22,6 +22,11 @@ std::string build_report_json(const dcc::io::AppConfig& cfg, const RunResult& re
 // 建構人閱讀版報告(Markdown,繁中)。
 std::string build_report_md(const dcc::io::AppConfig& cfg, const RunResult& res);
 
+// 落盤全部輸出:report.json/md + block.bin + 可讀等價 block.json/txt(SPEC-004 §4a)。
+// session 與 GUI 共用;out_dir 不存在時自動建立。
+void write_output_files(const std::string& out_dir, const dcc::io::AppConfig& cfg,
+                        const RunResult& res, const std::string& report_json);
+
 // 執行管線;out_dir 非空時落盤 report.json / report.md / block.bin,
 // 中止時落盤 abort_dump.json(config 快照 + 原始序列 + 錯誤),不上拋。
 // gain map 前期以 SimNvm 平坦值(1.0×221)透傳。

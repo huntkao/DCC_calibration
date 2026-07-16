@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
     }
     std::printf("模組判定:%s\n", outcome.pass ? "PASS" : "FAIL");
     if (out_dir)
-      std::printf("輸出:%s/report.json、report.md、block.bin\n", out_dir);
+      std::printf("輸出:%s/report.json、report.md、block.bin、block.json、block.txt\n", out_dir);
     return outcome.pass ? 0 : 1;
   } catch (const std::exception& e) {
     std::fprintf(stderr, "錯誤:%s\n", e.what());
