@@ -164,7 +164,8 @@ void draw_region_detail(ViewerState& s) {
     ImPlot::EndPlot();
   }
   if (seq.has_quality && ImPlot::BeginPlot("quality vs DAC", ImVec2(-1, 210))) {
-    ImPlot::SetupAxes("DAC", "quality", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+    ImPlot::SetupAxes("DAC", "quality", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_None);
+    ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Always);
     ImPlot::PlotLine("q", qx.data(), qy.data(), static_cast<int>(qx.size()));
     ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4, kSampleBlue, IMPLOT_AUTO, kSampleBlue);
     ImPlot::PlotScatter("採樣點", qx.data(), qy.data(), static_cast<int>(qx.size()));
