@@ -16,15 +16,16 @@ RAW 由外部擷取模組提供,本工具**唯讀**載入作互動式 UI 底圖(
 
 實作語言 **C++17**;GUI = Dear ImGui v1.91.9b-docking + ImPlot v0.17 + GLFW 3.4
 (FetchContent 鎖版;RAW 檢視為 ImPlot 自製,未用 TexInspect——理由見開發紀錄 §2.5)。
-測試 = Catch2(65 案例全綠)。CLI(dcc_cal)與 GUI(dcc_gui)能力等價(解耦試金石)。
+測試 = Catch2(76 案例全綠)。CLI(dcc_cal)與 GUI(dcc_gui)能力等價(解耦試金石)。
 規格變更仍走 spec 勘誤流程(改檔 + 頂部 revision 一行)。
 
 ### 跨機器上手(換手第一件事)
 ```
 cmake -S . -B build -G Ninja && cmake --build build   # 首次需網路拉依賴
-ctest --test-dir build                                # 應 65/65 綠
+ctest --test-dir build                                # 應 76/76 綠
 ./build/src/dcc_cli/dcc_cal --dry-run                 # CLI 驗證
 ./build/src/dcc_gui/dcc_gui --smoke                   # GUI 煙霧測試(隱藏視窗)
+./build/src/dcc_seqview/dcc_seqview --smoke           # 獨立 disp_seq.json 檢視器煙霧測試
 ```
 每次改動的最低驗證:build 零警告(本專案 targets)→ ctest 全綠 → `--smoke`。
 
@@ -96,6 +97,9 @@ src/dcc_hal/   motor, capture, nvm 介面 + Sim* 實作
 src/dcc_app/   session_controller(狀態機、失效傳播、背景重算、快照)
 src/dcc_cli/   run_calibration(--dry-run 走合成序列)
 src/dcc_gui/   ImGui(docking)+ ImPlot + ImGuiTexInspect(vendored)
+src/dcc_gui_common/  imgui_bundle 彙整 + 共用主題/字型 header-only(dcc_gui、dcc_seqview 共用)
+src/dcc_seqview/     獨立 disp_seq.json 檢視器(外部團隊自檢工具;零依賴 core/io/app/sim,
+                     見 seq_loader.hpp 註解;DCC_BUILD_SEQVIEW_GUI 控制是否建置 GUI 執行檔)
 tests/         Catch2,對映 SPEC-005 UT-01..10
 ```
 先寫測試(UT 表格是現成的驗收準則),再實作;dry-run(IT-01)綠了才碰硬體層。
