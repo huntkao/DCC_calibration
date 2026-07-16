@@ -19,7 +19,7 @@
 - 內容來源:**由計算結果直接輸出**(與 `pack()` 相同輸入),不經 unpack round-trip。
 - 內容(兩檔等價,json 給機器、txt 給人眼):
   - meta:block version、q_format、DCC 單位(依 `output_disparity_unit`)、
-    module_id、時間戳、config hash;
+    module_id、config hash(無時間戳——確定性輸出,依 IT-06 準則);
   - layout 對應:每欄位含 offset、bytes、編碼方式(對應 SPEC-004 §4 表);
   - 資料:gain L/R(物理值)、DCC 8×6(**物理值與 Q 編碼 raw 值 hex 並列**,
     如 12.46 → 0x031D);

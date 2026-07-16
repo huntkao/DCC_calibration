@@ -16,13 +16,13 @@ RAW 由外部擷取模組提供,本工具**唯讀**載入作互動式 UI 底圖(
 
 實作語言 **C++17**;GUI = Dear ImGui v1.91.9b-docking + ImPlot v0.17 + GLFW 3.4
 (FetchContent 鎖版;RAW 檢視為 ImPlot 自製,未用 TexInspect——理由見開發紀錄 §2.5)。
-測試 = Catch2(76 案例全綠)。CLI(dcc_cal)與 GUI(dcc_gui)能力等價(解耦試金石)。
+測試 = Catch2(79 案例全綠)。CLI(dcc_cal)與 GUI(dcc_gui)能力等價(解耦試金石)。
 規格變更仍走 spec 勘誤流程(改檔 + 頂部 revision 一行)。
 
 ### 跨機器上手(換手第一件事)
 ```
 cmake -S . -B build -G Ninja && cmake --build build   # 首次需網路拉依賴
-ctest --test-dir build                                # 應 76/76 綠
+ctest --test-dir build                                # 應 79/79 綠
 ./build/src/dcc_cli/dcc_cal --dry-run                 # CLI 驗證
 ./build/src/dcc_gui/dcc_gui --smoke                   # GUI 煙霧測試(隱藏視窗)
 ./build/src/dcc_seqview/dcc_seqview --smoke           # 獨立 disp_seq.json 檢視器煙霧測試
@@ -111,7 +111,7 @@ tests/         Catch2,對映 SPEC-005 UT-01..10
 2. Runtime PDLIB 的 disparity 單位 —— 延期至 M2 燒錄前(`output_disparity_unit`
    雙路徑已對沖,定案時翻 config 即可)
 3. Chart 距離公差對 DCC 的靈敏度 —— 轉為 M1 後首批分析任務(合成序列掃描)
-4. 實際 EEPROM layout(`PDAFCalibrationTools_EEPROM.h`)—— 延期至 M2 燒錄前
-   (io.eeprom 隔離,可離線重打包)
+4. 實際 EEPROM layout(`PDAFCalibrationTools_EEPROM.h`)—— **已改性質 2026-07-16**:
+   假設格式轉正(非 Qualcomm 專用),`PDAFCalibrationTools_EEPROM.h` 對齊改為條件式(僅對接 Qualcomm 平台時)
 5. ~~外部 SAD 模組輸出粒度與聚合規則~~(已關閉 2026-07-11:粒度可設定,
    median/加權平均聚合,見 SPEC-004 §3a、SPEC-002 D-5)

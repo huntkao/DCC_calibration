@@ -5,6 +5,9 @@
 > rev 2026-07-11(3):margin 預設定案 0.1;連動數值一律以公式參數化表述,範例值僅為預設 config 之推導示例。
 > rev 2026-07-13:num_positions 由固定 10 改為可設定(5..50,預設 10),並明訂與 min_valid_samples / focus.poly_order / peak_margin_steps 之交叉約束(loader 於載入即檢核,E-A01)。
 > rev 2026-07-15:新增 §3a.1 quality 數值語意**提案**(值域 [0,1]、σ 之單調遞減代理、建議標定 q ∝ 1/σ²),作為 M2 與外部 SAD 模組格式凍結之談判基準;Sim 端同步新增 focus_linked 合成模型(SPEC-005 §2)。
+> rev 2026-07-16:disp_seq.json v1 與外部 SAD 團隊格式凍結(§3a);quality 語意改採對照表記錄對方標定(§3a.1);
+> §4 EEPROM 假設格式轉正為正式輸出格式,`PDAFCalibrationTools_EEPROM.h` 對齊改為條件式;
+> 新增 §4a 可讀等價檔 block.json / block.txt。
 
 ## 1. 檔案佈局
 
@@ -63,7 +66,7 @@ data/output/<module_id>/report.json / report.md / block.bin
   應恆等於 `pitch_x`(範例模組 = 16);
   若 ≈ 1(漏乘 pitch_x)或 ≈ pitch_x²(重複乘)即示警。
 
-## 3a. Disparity 序列輸入格式(v1,離線模式主要輸入)
+## 3a. Disparity 序列輸入格式(v1,已凍結 2026-07-16,離線模式主要輸入)
 
 外部 SAD 模組每模組輸出一份 `disp_seq.json`(UTF-8):
 
@@ -82,10 +85,19 @@ data/output/<module_id>/report.json / report.md / block.bin
 讀取驗證規則見 SPEC-002 Phase D(E-D01/E-D02);讀取端即轉為 raw_pixel;
 粒度聚合(median / quality 加權平均,config `aggregation.*`)見 SPEC-002 D-5。
 
-### 3a.1 quality 數值語意(提案,待 M2 與外部 SAD 模組凍結)
+### 3a.1 quality 數值語意(已凍結 2026-07-16)
 
-> 本節為**本工具端之語意提案**,目的是讓格式凍結談判有具體基準;
-> 定案前外部模組之實際標定可能不同,凍結時以對照表記錄差異並修訂本節。
+> **凍結記錄(2026-07-16)**:disp_seq.json v1 欄位結構/單位/必填規則已與外部 SAD 團隊凍結。
+> quality 數值語意**未採**本節原提案(q ∝ 1/σ²),對方標定為 **SAD 曲線形狀導出
+> (極小值尖銳度/峰谷比類)**;具體公式與值域文件待補,補齊後更新下表。
+>
+> | 面向 | 本工具原提案 | 對方凍結標定 |
+> |---|---|---|
+> | 來源 | σ 單調遞減代理,q ∝ 1/σ² | SAD 極小值尖銳度/峰谷比 |
+> | 對 D-5 聚合 | 最小變異加權 | 單調信心權重(仍可用) |
+> | 對 M2 WLS/EIV | q 可直接推 σ | **須先建立 q→σ 標定才可作權重** |
+
+原提案內容:
 
 - **值域 [0,1]**,float;`1.0` = 最高信心、`0.0` = 不可信。
 - **語意**:該 cell disparity 量測標準差 σ 的**單調遞減代理**;
@@ -115,8 +127,21 @@ data/output/<module_id>/report.json / report.md / block.bin
 | 0x0380 | 96 | DCC[48] | Q(q), uint16 BE |
 | 0x03E0 | 1 | checksum = Σ前段 %256 | uint8 |
 
-> 量產前須逐位對齊 `PDAFCalibrationTools_EEPROM.h`;差異處以對照表記錄。
-> 離線前期:pack/verify 僅落盤 `block.bin` 並經 SimNvm 回讀驗證;實體燒錄屬 M2。
+> 本專案非 Qualcomm 專用(2026-07-16 決議):本開發版 layout 即正式輸出格式;
+> `PDAFCalibrationTools_EEPROM.h` 逐位對齊改為**條件式**——僅對接 Qualcomm 平台時執行,差異以對照表記錄。
+> 離線前期:pack/verify 落盤 `block.bin` 並經 SimNvm 回讀驗證;實體燒錄屬 M2。
+
+### 4a. 可讀等價檔 block.json / block.txt(2026-07-16 新增)
+
+與 `block.bin` 同目錄輸出、同源生成(相同 pack 輸入),供跨平台整合與人工核對:
+
+- `block.json`:`format="dcc-block-equiv v1"`;含 block_version、module_id、config_hash、
+  `layout[]`(每欄 field/offset/bytes/encoding)、`total_bytes`、
+  gain(w/h/left/right 物理值)、dcc(w/h/unit/q_format/values 物理值/encoded_hex)、
+  checksum(value/hex/rule)。**確定性輸出,無時間戳**(同 §5 report.json 準則)。
+- `block.txt`:人閱讀版(繁中);layout 表 + gain 表 + DCC 物理值/hex 兩張 8×6 表 + checksum。
+- 等價性守則:`total_bytes` 與 `checksum` 由 `eeprom::pack()` 同源取得,
+  layout bytes 總和 == block.bin 長度(993),由 UT 閉環。
 
 ## 5. report.json Schema(v1,節錄)
 

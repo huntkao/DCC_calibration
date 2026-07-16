@@ -5,6 +5,8 @@
 > rev 2026-07-11(3):margin 預設定案 0.1;UT-01/06、IT-04、§3a 誤差預算改公式參數化並依預設 config 重推示例數字。
 > rev 2026-07-11(4):§7 開放問題 #1/#2/#4 標註延期至 M2 前、#3 轉為 M1 後分析任務——M0 出場準則(§6)之「明確延期」條件成立,不卡 M1 開發。
 > rev 2026-07-15:§2 新增 quality 合成模型(off/const/focus_linked;q 與 focus 同源、σ_eff = σ₀/√q 掛鉤、q_null_th 掉樣),對應 SPEC-004 §3a.1 語意提案;測試 tag [sim][quality]。
+> rev 2026-07-16:§7 開放問題 #4 改性質(EEPROM 假設格式轉正、Qualcomm 對齊改條件式);
+> §3 測試對映新增 eeprom_equiv(block.json/txt 等價閉環)與五檔落盤 IT 補充。
 
 ## 1. 測試層級
 
@@ -49,6 +51,7 @@
 | UT-08 | eeprom(FR-16) | 12.46→0x031D;checksum 破壞可偵測;pack→read round-trip |
 | UT-09 | 單位(SPEC-004 §3) | dcc_pd_grid / dcc_raw_px == pitch_x;對漏乘(≈1)/重複乘(≈pitch_x²)正確示警 |
 | UT-10 | 粒度聚合(D-5) | 無雜訊細粒度(144×108)序列經 median 與 weighted_mean 聚合,結果皆與直接 8×6 序列一致(<1e-9);區內有效 cell 比例 0.49/0.50 邊界判定正確 |
+| UT-補充 | eeprom_equiv(2026-07-16) | block.json/txt 與 `eeprom::pack()` 同源:encoded hex 與 `encode_q` 一致、checksum 與 pack 尾 byte 一致、layout bytes 總和 == block.bin 長度(993);假設模組基準值 12.46 → 0x031D 閉環 |
 
 ## 3a. 誤差預算(外部 SAD 模組之 disparity 精度要求)
 
@@ -83,7 +86,7 @@
 | IT-03 | 序列 disparity 取負(模擬 L/R 對調) | Phase E 以 E-E01 中止,現場資料落盤 |
 | IT-04 | chart 距離錯(合焦 > NEAR − step,預設 config 示例 640) | E-F01 觸發 |
 | IT-05 | [M2] 曝光過高幀 | Phase C 於該幀 E-C03 中止 |
-| IT-06 | 離線重算 | 以落盤序列快照重跑,DCC 一致(bit-exact) |
+| IT-06 | 離線重算 | 以落盤序列快照重跑,DCC 一致(bit-exact);dry-run 後 out_dir 五檔齊全(report.json、report.md、block.bin、block.json、block.txt) |
 | IT-07 | 誤差預算閉環(§3a) | 注入 σ_d=0.5 px + bias=0.3 px,×10 次蒙地卡羅:中央 DCC CV < 2% 且偏差 < 3% |
 
 ## 5. 硬體/驗收測試(HT/AT)
@@ -117,8 +120,8 @@
    nl=0.05 時靈敏度 ≈ 2·nl·Δ/(span/2)(預設 span 480 → /240;+40 DAC → +1.7%,與理論一致)。
    **最終關閉待實模組量測真實非線性量級**(掃描方法與判讀已備妥)
 4. EEPROM 實際 layout 與 v4 開發版差異(等 `PDAFCalibrationTools_EEPROM.h`)
-   —— **延期至 M2 實體燒錄前關閉**(io.eeprom 為隔離模組;report.json 為
-   資料真值來源,layout 換版可離線重打包,無需重跑校正)
+   —— **改性質(2026-07-16)**:本專案非 Qualcomm 專用,開發版 layout 轉正;
+   `PDAFCalibrationTools_EEPROM.h` 對齊為條件式(對接 Qualcomm 才需)。
 5. ~~外部 SAD 模組輸出粒度~~ **已關閉(2026-07-11 決議)**:粒度可設定
    (序列自述 grid_w/grid_h,可 ≠ dcc.grid),聚合規則 median(預設)/
    quality 加權平均,config `aggregation.*`;規格見 SPEC-004 §3a、SPEC-002 D-5
