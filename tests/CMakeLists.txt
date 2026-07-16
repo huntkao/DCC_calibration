@@ -17,6 +17,7 @@ add_executable(dcc_tests
   ut08_eeprom_test.cpp
   ut09_units_test.cpp
   ut10_aggregate_test.cpp
+  eeprom_equiv_test.cpp
   it_pipeline_test.cpp
   raw_test.cpp
   config_test.cpp
