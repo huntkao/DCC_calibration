@@ -2,7 +2,6 @@
 // 座標約定:x = disp [raw_pixel]、y = DAC;DAC 精確、disp 含噪(EIV 前提)。
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
-#include <iostream>
 #include <limits>
 #include <numeric>
 #include <random>
@@ -181,7 +180,10 @@ TEST_CASE("fitter: 蒙地卡羅——前向衰減符合理論、反向無偏(UT-
     k_inv.push_back(fit_region(dacs, disp, inv).dcc);
   }
   // 前向:平均斜率 ≈ att·k_true(衰減);反向:≈ k_true(無偏,二階項 <0.3%)
-  REQUIRE(std::fabs(mean_of(k_fwd) / kTrueDcc - att) < 0.0055);  // 容納MC波動(實測0.00529)
+  // 容差 0.008:實測殘差 ~0.53% 為一階 att 公式未涵蓋之二階 Jensen 修正項
+  // (比值估計量 E[num/den]≠E[num]/E[den];σ=2、n=10 時理論 ≈ +0.55%,系統性、非 MC 雜訊),
+  // 另留 ~3×MC 標準誤(~0.08%)緩衝以耐跨平台 RNG 序列差異(libc++ vs libstdc++)。
+  REQUIRE(std::fabs(mean_of(k_fwd) / kTrueDcc - att) < 0.008);
   REQUIRE(std::fabs(mean_of(k_inv) / kTrueDcc - 1.0) < 0.005);
   // 消偏幅度:|反向偏差| 遠小於 |前向偏差|
   REQUIRE(std::fabs(mean_of(k_inv) - kTrueDcc) * 5.0 < std::fabs(mean_of(k_fwd) - kTrueDcc));
