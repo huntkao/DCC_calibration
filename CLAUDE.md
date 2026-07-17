@@ -4,15 +4,20 @@
 
 PDAF DCC(Defocus Conversion Coefficient)校正工具。對單顆相機模組執行:
 鏡頭掃描(10 點)→ 逐區相位視差 → 線性回歸出 8×6 DCC map → focus 交叉驗證 → EEPROM 打包。
-流程依 Qualcomm 80-NV125-1。目標平台後續會對接 Qualcomm 平台(RB5/QRB5165 經驗背景)。
+流程依 Qualcomm 80-NV125-1。
 
-**前期為離線工具**(2026-07-11 決議):實機擷取、PD 抽取/gain/SAD disparity 計算、
-EEPROM 實體燒錄皆由外部模組承擔,本工具消費外部之 disparity/focus 序列
-(格式 SPEC-004 §3a;SAD 粒度可 ≠ 8×6,依 config 以 median/加權平均聚合)。
+**永久定位為離線校正 + 實驗工具,不做硬體對接**(2026-07-17 決議,取代原「前期離線」):
+實機擷取、PD 抽取/gain/SAD disparity 計算、EEPROM 實體燒錄皆由外部模組承擔,
+本工具消費外部之 disparity/focus 序列(格式 SPEC-004 §3a;SAD 粒度可 ≠ 8×6,
+依 config 以 median/加權平均聚合),離線產出校正結果、報告與可讀等價檔(`block.bin`+json/txt)。
 RAW 由外部擷取模組提供,本工具**唯讀**載入作互動式 UI 底圖(不參與計算、不得寫入)。
-介面保留待 M2 對接。所有 Phase 參數必須可由 config 設定。
+HAL/NvmIF 介面僅保留 Sim* 實作,不再規劃實機對接。所有 Phase 參數必須可由 config 設定。
 
-## 目前狀態:M1 完成(2026-07-13),待驗收後進 M2 硬體整合
+## 目前狀態:M1 完成(2026-07-13),待兩方簽核驗收;下一階段 = 離線分析/實驗(非硬體整合)
+
+> 2026-07-17:專案範圍收斂,原「M2 硬體整合 / M3 產線化」移出 scope(見 SPEC-000 §6、
+> SPEC-005 §6/§7)。出場準則簽核改為校正/演算法兩方。M2 重定義為離線分析與實驗能力擴充
+> (chart 距離公差靈敏度掃描、Sim 雜訊注入、fitter 精度演練、q→σ 標定等)。
 
 實作語言 **C++17**;GUI = Dear ImGui v1.91.9b-docking + ImPlot v0.17 + GLFW 3.4
 (FetchContent 鎖版;RAW 檢視為 ImPlot 自製,未用 TexInspect——理由見開發紀錄 §2.5)。
