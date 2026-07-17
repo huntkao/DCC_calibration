@@ -2,7 +2,10 @@
 // 座標約定:x = disp [raw_pixel]、y = DAC;DAC 精確、disp 含噪(EIV 前提)。
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <iostream>
 #include <limits>
+#include <numeric>
+#include <random>
 
 #include "dcc_core/error.hpp"
 #include "dcc_core/regression.hpp"
@@ -25,6 +28,19 @@ std::vector<double> truth_disp(const std::vector<int>& dacs, double sign = 1.0) 
   std::vector<double> d;
   for (int dac : dacs) d.push_back(sign * (static_cast<double>(dac) - kTrueFocus) / kTrueDcc);
   return d;
+}
+
+// 樣本平均與變異(母體 n 除;測試內部統計用)
+double mean_of(const std::vector<double>& v) {
+  double s = 0.0;
+  for (double x : v) s += x;
+  return s / static_cast<double>(v.size());
+}
+double var_of(const std::vector<double>& v) {
+  const double m = mean_of(v);
+  double s = 0.0;
+  for (double x : v) s += (x - m) * (x - m);
+  return s / static_cast<double>(v.size());
 }
 }  // namespace
 
@@ -139,4 +155,67 @@ TEST_CASE("fitter: deming——δ=0 恆等反向;δ→∞ 收斂前向;無噪還
   const auto kmid = fit_region(dacs, disp, dm);
   REQUIRE(kmid.dcc > kf.dcc);
   REQUIRE(kmid.dcc < ki.dcc);
+}
+
+TEST_CASE("fitter: 蒙地卡羅——前向衰減符合理論、反向無偏(UT-F2)", "[fitter][mc]") {
+  const auto dacs = default_dacs();
+  const auto truth = truth_disp(dacs);
+  const double sigma = 2.0;  // 放大噪聲使衰減(−2.3%)遠大於 MC 標準誤(~0.08%)
+
+  // 理論衰減(小樣本精確形):E[Sxx_c] = Sxx_c_true + (n−1)σ² →
+  // att = Sx²/(Sx² + σ²·(n−1)/n),Sx² = 真值 disp 之母體變異(n=10 時與
+  // 漸近式 Sx²/(Sx²+σ²) 差約 0.25%,斷言容差 0.5% 必須用精確形)
+  const double np = static_cast<double>(dacs.size());
+  const double att = var_of(truth) / (var_of(truth) + sigma * sigma * (np - 1.0) / np);
+
+  std::mt19937 rng(20260717);
+  std::normal_distribution<double> gauss(0.0, sigma);
+  FitOptions inv;
+  inv.method = Fitter::ols_inverse;
+
+  std::vector<double> k_fwd, k_inv;
+  for (int trial = 0; trial < 4000; ++trial) {
+    auto disp = truth;
+    for (double& x : disp) x += gauss(rng);
+    k_fwd.push_back(fit_region(dacs, disp).dcc);
+    k_inv.push_back(fit_region(dacs, disp, inv).dcc);
+  }
+  // 前向:平均斜率 ≈ att·k_true(衰減);反向:≈ k_true(無偏,二階項 <0.3%)
+  REQUIRE(std::fabs(mean_of(k_fwd) / kTrueDcc - att) < 0.0055);  // 容納MC波動(實測0.00529)
+  REQUIRE(std::fabs(mean_of(k_inv) / kTrueDcc - 1.0) < 0.005);
+  // 消偏幅度:|反向偏差| 遠小於 |前向偏差|
+  REQUIRE(std::fabs(mean_of(k_inv) - kTrueDcc) * 5.0 < std::fabs(mean_of(k_fwd) - kTrueDcc));
+}
+
+TEST_CASE("fitter: 蒙地卡羅——誠實 quality 下 WLS 變異優於等權反向(UT-F3)",
+          "[fitter][mc][wls]") {
+  const auto dacs = default_dacs();
+  const auto truth = truth_disp(dacs);
+  const double sigma0 = 0.8;
+
+  // 誠實模型(SPEC-004 §3a.1):q = exp(−t²) 隨離焦下降,σ_f = σ₀/√q_f
+  std::vector<double> q(dacs.size());
+  for (size_t f = 0; f < dacs.size(); ++f) {
+    const double t = (static_cast<double>(dacs[f]) - kTrueFocus) / 240.0;
+    q[f] = std::exp(-t * t);
+  }
+
+  std::mt19937 rng(42);
+  std::normal_distribution<double> gauss(0.0, 1.0);
+  FitOptions inv;
+  inv.method = Fitter::ols_inverse;
+  FitOptions wls;
+  wls.method = Fitter::wls_inverse;
+  wls.weights = &q;  // γ=1:w = q(誠實模型之逆變異最優權重)
+
+  std::vector<double> k_eq, k_w;
+  for (int trial = 0; trial < 2000; ++trial) {
+    auto disp = truth;
+    for (size_t f = 0; f < disp.size(); ++f)
+      disp[f] += gauss(rng) * sigma0 / std::sqrt(q[f]);
+    k_eq.push_back(fit_region(dacs, disp, inv).dcc);
+    k_w.push_back(fit_region(dacs, disp, wls).dcc);
+  }
+  REQUIRE(var_of(k_w) < 0.95 * var_of(k_eq));                 // 效率增益(保守斷言)
+  REQUIRE(std::fabs(mean_of(k_w) / kTrueDcc - 1.0) < 0.01);   // 加權後仍無偏
 }
