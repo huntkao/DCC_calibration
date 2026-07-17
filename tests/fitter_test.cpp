@@ -62,3 +62,46 @@ TEST_CASE("fitter: ols_inverse 錯誤路徑——負斜率 E-E01、樣本不足 
   }
   REQUIRE(std::string(dcc::regression::to_string(Fitter::ols_inverse)) == "ols_inverse");
 }
+
+TEST_CASE("fitter: wls_inverse 權重語意——等權≡反向、w=0 形同剔除、Σw=0 → E-D03",
+          "[fitter][wls]") {
+  const auto dacs = default_dacs();
+  const auto disp = truth_disp(dacs);
+
+  FitOptions inv;
+  inv.method = Fitter::ols_inverse;
+  FitOptions wls;
+  wls.method = Fitter::wls_inverse;
+
+  // 等權(全 1)≡ ols_inverse
+  const std::vector<double> ones(dacs.size(), 1.0);
+  wls.weights = &ones;
+  const auto a = fit_region(dacs, disp, wls);
+  const auto b = fit_region(dacs, disp, inv);
+  REQUIRE(std::fabs(a.dcc - b.dcc) / b.dcc < 1e-12);
+  REQUIRE(std::fabs(a.intercept - b.intercept) < 1e-9);
+
+  // w=0 形同剔除:對兩端點置零 ≡ 把該樣本設 NaN 後之反向(數值等值;n_valid 仍計非 NaN)
+  std::vector<double> w0(dacs.size(), 1.0);
+  w0.front() = 0.0;
+  w0.back() = 0.0;
+  wls.weights = &w0;
+  const auto c = fit_region(dacs, disp, wls);
+  auto disp_nan = disp;
+  disp_nan.front() = kNaN;
+  disp_nan.back() = kNaN;
+  const auto d = fit_region(dacs, disp_nan, inv);
+  REQUIRE(std::fabs(c.dcc - d.dcc) / d.dcc < 1e-12);
+  REQUIRE(c.n_valid == 10);  // 非 NaN 計數不受權重影響
+  REQUIRE(d.n_valid == 8);
+
+  // 全零權重 → E-D03
+  const std::vector<double> zeros(dacs.size(), 0.0);
+  wls.weights = &zeros;
+  try {
+    fit_region(dacs, disp, wls);
+    FAIL("應拋出 DccError(E-D03)");
+  } catch (const DccError& e) {
+    REQUIRE(e.code() == ErrorCode::E_D03);
+  }
+}
