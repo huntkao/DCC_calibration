@@ -12,6 +12,7 @@ add_executable(dcc_tests
   ut03_unit_conversion_test.cpp
   ut04_invalid_samples_test.cpp
   ut05_regression_test.cpp
+  fitter_test.cpp
   ut06_focus_test.cpp
   ut07_validate_test.cpp
   ut08_eeprom_test.cpp
