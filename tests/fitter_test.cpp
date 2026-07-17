@@ -105,3 +105,38 @@ TEST_CASE("fitter: wls_inverse 權重語意——等權≡反向、w=0 形同剔
     REQUIRE(e.code() == ErrorCode::E_D03);
   }
 }
+
+TEST_CASE("fitter: deming——δ=0 恆等反向;δ→∞ 收斂前向;無噪還原真值", "[fitter][deming]") {
+  const auto dacs = default_dacs();
+
+  // 無噪:還原真值
+  FitOptions dm;
+  dm.method = Fitter::deming;
+  const auto clean = fit_region(dacs, truth_disp(dacs), dm);
+  REQUIRE(std::fabs(clean.dcc - kTrueDcc) < 1e-6);
+  REQUIRE(std::fabs(clean.intercept - kTrueFocus) < 1e-6);
+
+  // 含噪資料上驗證兩極限(手工可重現之固定擾動,非隨機)
+  auto disp = truth_disp(dacs);
+  const double perturb[10] = {0.31, -0.24, 0.18, -0.4, 0.05, 0.22, -0.11, 0.36, -0.29, 0.15};
+  for (size_t i = 0; i < disp.size(); ++i) disp[i] += perturb[i];
+
+  FitOptions inv;
+  inv.method = Fitter::ols_inverse;
+  const auto ki = fit_region(dacs, disp, inv);
+  dm.deming_delta = 0.0;
+  const auto k0 = fit_region(dacs, disp, dm);
+  REQUIRE(k0.dcc == ki.dcc);              // δ=0 分支直接走反向公式 → 位元級相等
+  REQUIRE(k0.intercept == ki.intercept);
+
+  const auto kf = fit_region(dacs, disp);  // 前向
+  dm.deming_delta = 1e12;                  // δ→∞:噪聲全歸 DAC → 前向極限
+  const auto kinf = fit_region(dacs, disp, dm);
+  REQUIRE(std::fabs(kinf.dcc - kf.dcc) / kf.dcc < 1e-6);
+
+  // 中間 δ:斜率落在前向(小)與反向(大)之間(含噪時 k_fwd < k_inv)
+  dm.deming_delta = 100.0;
+  const auto kmid = fit_region(dacs, disp, dm);
+  REQUIRE(kmid.dcc > kf.dcc);
+  REQUIRE(kmid.dcc < ki.dcc);
+}
