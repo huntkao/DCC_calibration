@@ -120,6 +120,19 @@ AppConfig load_config(const std::string& json_text) {
   if (c.sweep.num_positions < 5 || c.sweep.num_positions > 50)
     throw DccError(ErrorCode::E_A01, "num_positions 須在 5..50(預設 10)");
 
+  // ── regression(選填,含預設)─────────────────────────────────────────
+  if (j.contains("regression")) {
+    const std::string f = j["regression"].value("fitter", "ols_forward");
+    if (f == "ols_forward") c.fitter = dcc::regression::Fitter::ols_forward;
+    else if (f == "ols_inverse") c.fitter = dcc::regression::Fitter::ols_inverse;
+    else if (f == "wls_inverse") c.fitter = dcc::regression::Fitter::wls_inverse;
+    else if (f == "deming") c.fitter = dcc::regression::Fitter::deming;
+    else throw DccError(ErrorCode::E_A01, "regression.fitter 非法:" + f);
+    c.weight_gamma = j["regression"].value("weight_gamma", 1.0);
+    if (c.weight_gamma < 0.0 || c.weight_gamma > 8.0)
+      throw DccError(ErrorCode::E_A01, "regression.weight_gamma 須在 0..8");
+  }
+
   // ── focus / aggregation(選填,含預設)────────────────────────────────
   if (j.contains("focus")) {
     c.focus_poly_order = j["focus"].value("poly_order", 4);
@@ -170,6 +183,7 @@ const char* default_config_json() {
              "grid_w": 8, "grid_h": 6, "q_format": 6, "tolerance": 0.2,
              "min_valid_samples": 8, "smooth_limit": 0.25, "r2_warn": 0.98,
              "input_disparity_unit": "raw_pixel", "output_disparity_unit": "raw_pixel" },
+    "regression": { "fitter": "ols_forward", "weight_gamma": 1.0 },
     "focus": { "poly_order": 4, "peak_margin_steps": 1 },
     "aggregation": { "method": "median", "min_valid_ratio": 0.5 }
   })json";
@@ -194,6 +208,8 @@ std::string serialize_config(const AppConfig& c) {
   d["r2_warn"] = c.r2_warn;
   d["input_disparity_unit"] = c.input_disparity_unit;
   d["output_disparity_unit"] = c.output_disparity_unit;
+  j["regression"]["fitter"] = dcc::regression::to_string(c.fitter);
+  j["regression"]["weight_gamma"] = c.weight_gamma;
   j["focus"]["poly_order"] = c.focus_poly_order;
   j["focus"]["peak_margin_steps"] = c.peak_margin_steps;
   j["aggregation"]["method"] =

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "dcc_core/aggregate.hpp"
+#include "dcc_core/regression.hpp"
 #include "dcc_core/sweep.hpp"
 
 namespace dcc::io {
@@ -28,6 +29,10 @@ struct AppConfig {
   double r2_warn = 0.98;
   std::string input_disparity_unit = "raw_pixel";
   std::string output_disparity_unit = "raw_pixel";
+
+  // regression(設計文件 2026-07-17;預設 = v1 行為)
+  dcc::regression::Fitter fitter = dcc::regression::Fitter::ols_forward;
+  double weight_gamma = 1.0;  // WLS 權重 w = q^γ(僅 wls_inverse 用)
 
   // focus
   int focus_poly_order = 4;

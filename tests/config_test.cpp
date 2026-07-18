@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "dcc_core/error.hpp"
+#include "dcc_core/regression.hpp"
 #include "dcc_io/config.hpp"
 
 using dcc::DccError;
@@ -94,4 +95,33 @@ TEST_CASE("config:serialize → load 閉環(UI 編輯值經同一驗證器,hash 
   } catch (const DccError& e) {
     REQUIRE(e.code() == ErrorCode::E_A01);
   }
+}
+
+TEST_CASE("config: regression 段——載入、預設、非法值 E-A01", "[config][fitter]") {
+  using dcc::regression::Fitter;
+  // 預設(段缺省)= ols_forward / γ=1
+  const auto c0 = dcc::io::load_config(dcc::io::default_config_json());
+  REQUIRE(c0.fitter == Fitter::ols_forward);
+  REQUIRE(c0.weight_gamma == 1.0);
+
+  auto j = nlohmann::json::parse(dcc::io::default_config_json());
+  j["regression"] = {{"fitter", "wls_inverse"}, {"weight_gamma", 2.0}};
+  const auto c1 = dcc::io::load_config(j.dump());
+  REQUIRE(c1.fitter == Fitter::wls_inverse);
+  REQUIRE(c1.weight_gamma == 2.0);
+
+  j["regression"]["fitter"] = "banana";
+  REQUIRE_THROWS_AS(dcc::io::load_config(j.dump()), dcc::DccError);
+  j["regression"]["fitter"] = "wls_inverse";
+  j["regression"]["weight_gamma"] = 9.0;  // > 8
+  REQUIRE_THROWS_AS(dcc::io::load_config(j.dump()), dcc::DccError);
+}
+
+TEST_CASE("config: regression 段 serialize 閉環", "[config][fitter]") {
+  auto j = nlohmann::json::parse(dcc::io::default_config_json());
+  j["regression"] = {{"fitter", "ols_inverse"}, {"weight_gamma", 0.5}};
+  const auto c = dcc::io::load_config(j.dump());
+  const auto c2 = dcc::io::load_config(dcc::io::serialize_config(c));
+  REQUIRE(c2.fitter == c.fitter);
+  REQUIRE(c2.weight_gamma == c.weight_gamma);
 }

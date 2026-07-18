@@ -8,6 +8,7 @@
 > rev 2026-07-16:disp_seq.json v1 與外部 SAD 團隊格式凍結(§3a);quality 語意改採對照表記錄對方標定(§3a.1);
 > §4 EEPROM 假設格式轉正為正式輸出格式,`PDAFCalibrationTools_EEPROM.h` 對齊改為條件式;
 > 新增 §4a 可讀等價檔 block.json / block.txt。
+> rev 2026-07-17:§2 新增 regression.fitter / weight_gamma(可組態 fitter;預設 ols_forward 行為不變)。
 
 ## 1. 檔案佈局
 
@@ -44,6 +45,8 @@ data/output/<module_id>/report.json / report.md / block.bin
 | dcc.min_valid_samples | int | 預設 8(FR-11) |
 | dcc.smooth_limit | float | 預設 0.25(FR-15) |
 | dcc.r2_warn | float | 預設 0.98(Phase E 警告門檻) |
+| regression.fitter | enum | "ols_forward"(預設)\| "ols_inverse" \| "wls_inverse" \| "deming";回歸 fitter(設計:docs/superpowers/specs/2026-07-17-fitter-wls-eiv-design.md) |
+| regression.weight_gamma | float | WLS 權重 w = q^γ,0..8,預設 1.0(僅 wls_inverse 用;q→σ 標定橋接 γ = 2p) |
 | focus.poly_order | int | 預設 4(Phase F 擬合階數) |
 | focus.peak_margin_steps | int | 預設 1(FR-13 出界判定) |
 | aggregation.method | enum | "median"(預設)\| "weighted_mean";SAD 細粒度 → 8×6 聚合(SPEC-002 D-5) |
