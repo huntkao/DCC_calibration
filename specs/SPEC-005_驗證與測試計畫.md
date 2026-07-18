@@ -10,6 +10,7 @@
 > rev 2026-07-16(2):M1 驗收盤點補 FR-15 平滑性警告測試對映(原實作存在但無專屬案例)。
 > rev 2026-07-17:專案定位收斂為離線+實驗、不做硬體對接(SPEC-000 §6)。§6 出場準則三方簽核改為**校正/演算法兩方**(產線角色移除);§7 開放問題 #1/#2/#4 由「延期至 M2」改判為「不在 scope / 外部承擔」關閉,#3 轉為離線實驗任務(非 gate)。
 > rev 2026-07-17(2):§8 #2 EIV 備忘更新——ols_inverse/wls_inverse/deming 已實作並以蒙地卡羅驗證,結論見 docs/fitter實驗_反向WLS與EIV.md。
+> rev 2026-07-18:§3 補 fitter/qsigma/config/IT-fitter 測試對映(12 案例,合計 92)。
 
 ## 1. 測試層級
 
@@ -56,6 +57,9 @@
 | UT-10 | 粒度聚合(D-5) | 無雜訊細粒度(144×108)序列經 median 與 weighted_mean 聚合,結果皆與直接 8×6 序列一致(<1e-9);區內有效 cell 比例 0.49/0.50 邊界判定正確 |
 | UT-補充 | eeprom_equiv(2026-07-16) | block.json/txt 與 `eeprom::pack()` 同源:encoded hex 與 `encode_q` 一致、checksum 與 pack 尾 byte 一致、layout bytes 總和 == block.bin 長度(993);假設模組基準值 12.46 → 0x031D 閉環 |
 | UT-補充 | 平滑性警告(FR-15,2026-07-16) | 預設梯度(相鄰差 ~2-4%)於 smooth_limit 0.25 下不誤報;門檻壓至 0.01 觸發警告(含區座標),且模組判定仍 PASS(警告不 FAIL) |
+| UT-補充 | fitter(反向/WLS/Deming,SPEC-003 §5,2026-07-18) | 案例數 6;`tests/fitter_test.cpp` [fitter]:無噪還原、權重語意、deming 極限、蒙地卡羅消偏/效率 |
+| UT-補充 | qsigma q→σ 標定(SPEC-004 §3a.1,2026-07-18) | 案例數 2;`tests/qsigma_test.cpp` [qsigma]:冪律回推、γ=2p̂ 閉環 |
+| UT-補充 | config regression 段(SPEC-004 §2,2026-07-18) | 案例數 2;`tests/config_test.cpp` [config][fitter] |
 
 ## 3a. 誤差預算(外部 SAD 模組之 disparity 精度要求)
 
@@ -92,6 +96,7 @@
 | IT-05 | [M2] 曝光過高幀 | Phase C 於該幀 E-C03 中止 |
 | IT-06 | 離線重算 | 以落盤序列快照重跑,DCC 一致(bit-exact);dry-run 後 out_dir 五檔齊全(report.json、report.md、block.bin、block.json、block.txt) |
 | IT-07 | 誤差預算閉環(§3a) | 注入 σ_d=0.5 px + bias=0.3 px,×10 次蒙地卡羅:中央 DCC CV < 2% 且偏差 < 3% |
+| IT-補充 | fitter 管線接點(2026-07-18) | 案例數 2;`tests/it_pipeline_test.cpp` [it_fitter]:ols_inverse 全管線 dry-run PASS;wls_inverse 有/無 quality 之加權與等權退化 |
 
 ## 5. 硬體/驗收測試(HT/AT)
 
