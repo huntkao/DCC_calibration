@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "dcc_core/error.hpp"
+#include "dcc_core/regression.hpp"
 #include "dcc_core/units.hpp"
 #include "dcc_io/eeprom_equiv.hpp"
 
@@ -49,6 +50,8 @@ std::string build_report_json(const dcc::io::AppConfig& cfg, const RunResult& re
   r["r2"] = grid_field(res.regions, &RegionResult::r2);
   r["err"] = grid_field(res.regions, &RegionResult::err);
   r["pass"] = res.pass;
+  r["fitter"] = dcc::regression::to_string(cfg.fitter);   // 參數快照(可追溯)
+  r["weight_gamma"] = cfg.weight_gamma;
   // 16 倍檢核(SPEC-004 §3):恆等 pitch_x,否則示警。
   const auto rc = dcc::units::dcc_ratio_check(res.regions[0].dcc_raw_px,
                                               res.regions[0].dcc_pd_grid, cfg.pitch_x);

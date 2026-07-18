@@ -471,3 +471,49 @@ TEST_CASE("IT: 落盤五檔齊全且 block.json 與 block.bin 等價(checksum/�
           static_cast<int>(static_cast<unsigned char>(bin.back())));
   REQUIRE(j["dcc"]["unit"] == "DAC/raw_pixel");  // config 預設 output_disparity_unit
 }
+
+TEST_CASE("IT: fitter=ols_inverse 全管線 dry-run PASS 且中央 DCC 準確", "[it_fitter]") {
+  auto j = nlohmann::json::parse(dcc::io::default_config_json());
+  j["regression"] = {{"fitter", "ols_inverse"}};
+  const auto cfg = dcc::io::load_config(j.dump());
+
+  auto spec = base_spec(cfg);
+  spec.noise_sigma = 0.5;
+  spec.seed = 3;
+  const auto res = dcc::app::run(cfg, generate(spec), kFlatGain, kFlatGain);
+  REQUIRE(res.pass);
+  const size_t centers[4] = {2 * 8 + 3, 2 * 8 + 4, 3 * 8 + 3, 3 * 8 + 4};
+  double cd = 0.0, truth = 0.0;
+  for (size_t idx : centers) cd += res.regions[idx].dcc_raw_px;
+  truth += true_dcc(2, 3, 8, 6, 12.46, 14.5) + true_dcc(2, 4, 8, 6, 12.46, 14.5);
+  truth += true_dcc(3, 3, 8, 6, 12.46, 14.5) + true_dcc(3, 4, 8, 6, 12.46, 14.5);
+  REQUIRE(std::fabs(cd / 4.0 - truth / 4.0) / (truth / 4.0) < 0.03);
+
+  // report 記 fitter/γ(可追溯)
+  const auto out = dcc::app::run_session(cfg, generate(spec), "");
+  const auto rj = nlohmann::json::parse(out.report_json);
+  REQUIRE(rj["result"]["fitter"] == "ols_inverse");
+  REQUIRE(rj["result"]["weight_gamma"] == 1.0);
+}
+
+TEST_CASE("IT: wls_inverse——有 quality 走加權 PASS;無 quality 退化等權並警告", "[it_fitter]") {
+  auto j = nlohmann::json::parse(dcc::io::default_config_json());
+  j["regression"] = {{"fitter", "wls_inverse"}, {"weight_gamma", 1.0}};
+  const auto cfg = dcc::io::load_config(j.dump());
+
+  auto spec = base_spec(cfg);
+  spec.noise_sigma = 0.5;
+  spec.seed = 5;
+  spec.quality_model = dcc::sim::QualityModel::focus_linked;  // 誠實模型:σ_eff = σ₀/√q
+  spec.q_falloff = 0.3;
+  const auto with_q = dcc::app::run(cfg, generate(spec), kFlatGain, kFlatGain);
+  REQUIRE(with_q.pass);
+
+  spec.quality_model = dcc::sim::QualityModel::off;  // 無 quality 面
+  const auto no_q = dcc::app::run(cfg, generate(spec), kFlatGain, kFlatGain);
+  REQUIRE(no_q.pass);
+  bool warned = false;
+  for (const auto& w : no_q.warnings)
+    if (w.find("退化為等權") != std::string::npos) warned = true;
+  REQUIRE(warned);
+}

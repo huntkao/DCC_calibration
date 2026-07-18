@@ -39,12 +39,26 @@ RunResult run(const dcc::io::AppConfig& cfg, const std::string& disp_seq_json,
   const size_t n = res.seq.disp.size();
   res.regions.resize(regions);
 
+  // fitter 組態(設計文件 2026-07-17;預設 ols_forward = v1 行為,位元級不變)。
+  dcc::regression::FitOptions fit_opts;
+  fit_opts.method = cfg.fitter;
+  const bool want_wls = (cfg.fitter == dcc::regression::Fitter::wls_inverse);
+  if (want_wls && res.seq.quality.empty())
+    res.warnings.push_back("WLS:序列無 quality,退化為等權(≡ ols_inverse)");
+
   std::vector<double> intercepts(regions), peaks(regions);
   for (size_t ri = 0; ri < regions; ++ri) {
     std::vector<double> disp(n), fv(n);
     for (size_t f = 0; f < n; ++f) { disp[f] = res.seq.disp[f][ri]; fv[f] = res.seq.focus[f][ri]; }
 
-    const auto fit = dcc::regression::fit_region(res.dacs, disp, cfg.min_valid_samples);
+    std::vector<double> wts;  // WLS 每幀權重 w = q^γ(q 為聚合後 quality)
+    if (want_wls && !res.seq.quality.empty()) {
+      wts.resize(n);
+      for (size_t f = 0; f < n; ++f)
+        wts[f] = std::pow(std::max(res.seq.quality[f][ri], 0.0), cfg.weight_gamma);
+      fit_opts.weights = &wts;
+    }
+    const auto fit = dcc::regression::fit_region(res.dacs, disp, fit_opts, cfg.min_valid_samples);
     const double peak =
         dcc::focus::peak(res.dacs, fv, cfg.focus_poly_order, cfg.peak_margin_steps);
 
