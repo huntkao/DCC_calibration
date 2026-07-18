@@ -3,6 +3,7 @@
 > rev 2026-07-11:新增 io.disparity_reader(離線主要輸入);pd_extract/disparity 契約移轉外部模組;hal 前期僅 Sim 實作;regression fitter 明訂可抽換。
 > rev 2026-07-11(2):新增 io.raw_reader(RAW 唯讀,UI 底圖);disparity_io 納入粒度聚合;tools 層明訂互動式 UI。
 > rev 2026-07-12:M0 凍結後之實作決議勘誤——實作語言 C++17;分層改為 C++ 模組(新增 dcc_app 層);前端技術選型:GUI = Dear ImGui(docking)+ ImPlot + ImGuiTexInspect(vendored),測試 = Catch2。
+> rev 2026-07-17:§5 regression fitter 由「可抽換」落地為可組態(enum+config),新增 core qsigma 模組。
 
 > 本文件定義「介面契約」——簽名、單位、前後置條件;不含實作。
 
@@ -78,7 +79,8 @@ raw_io.load(path) -> RawFrame
 
 regression.fit(dacs[10], disp[10,6,8]) -> (DccMap, InterceptMap, R2Map)
   pre : 每區非 NaN 樣本 >= min_valid_samples;post: DccMap>0 否則 RegressionSignError(E-E01)
-  note: fitter 為可抽換介面;v1 = 一般最小平方(OLS);EIV 修正版列開發備忘(SPEC-005 §8 #2)
+  note: fitter 可組態(config regression.fitter):v1 預設 OLS;另有 ols_inverse/
+        wls_inverse(w=q^γ)/deming——實驗結論見 docs/fitter實驗_反向WLS與EIV.md
 
 focus.peak(dacs[10], fv[10]) -> float
   post: 峰值嚴格在 (min+1step, max-1step) 內,否則 FocusBoundaryError(E-F01)

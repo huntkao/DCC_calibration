@@ -79,6 +79,14 @@ Result calibrate(const std::vector<double>& q, const std::vector<double>& abs_re
 Sim 誠實模型(σ_eff = σ₀/√q)⇒ p = 0.5 ⇒ γ = 1,兩半題目閉環自洽。
 真實 SAD quality(曲線形狀導出)到位後,跑同一標定程序即得該資料之 γ。
 
+> **實作勘誤(2026-07-18)**:n=10 之擬合殘差被 hat matrix 收縮,直接用原始
+> |殘差| 會讓 p̂ 低估至 ≈0.24。實作改為對每筆殘差做
+> `|e| / sqrt(1 − h_ff)` studentized 修正後才餵入 calibrate(),修正後
+> p̂ ≈ 0.40(仍略低於合成真值 0.5,studentized 在異方差下僅一階近似)→
+> γ̂ = 2p̂ ≈ 0.8。經 `--fitter-scan` 蒙地卡羅驗證,WLS 對 γ 誤標並不敏感
+> (γ=0.5/2 之 CV 差距遠小於「用不用 WLS」之改善量),故此殘留偏差不影響
+> §4 橋接論證的實務結論。詳見 docs/fitter實驗_反向WLS與EIV.md §2、§3.3。
+
 ## 5. config / 管線 / GUI 接點
 
 - config 新增(dcc_io/config,含驗證):
@@ -107,6 +115,11 @@ synth 用 `quality_model=focus_linked`(q 逐幀變化才顯 WLS 增益),固定 s
 | UT-Q1 | qsigma 回推 | p ∈ [0.4, 0.6]、σ₀ 誤差 < 10% |
 | UT-Q2 | 標定閉環 | calibrate 之 γ=2p 餵 WLS ≈ 真 γ=1 之 WLS |
 | IT | 管線接點 | `fitter=ols_inverse` dry-run PASS;預設 config 下既有 80 案例不動 |
+
+> **實作勘誤(2026-07-18)**:calibrate() 之等頻分箱依 q 排序時改用
+> `std::stable_sort`(僅比較 q,不比對應殘差),確保同 q 值的分箱邊界穩定、
+> 不受輸入原始順序影響;UT-Q2 之下界斷言(1000 種子代理實驗)已按此行為
+> 訂為 p̂ ≥ 0.28。
 
 ## 8. 交付與文件同步
 
