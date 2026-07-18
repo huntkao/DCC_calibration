@@ -105,6 +105,8 @@ synth 用 `quality_model=focus_linked`(q 逐幀變化才顯 WLS 增益),固定 s
 每組合輸出:中央區 DCC 偏差 bias%、變異 CV%、全區 RMSE%;
 每 σ 另跑 qsigma 標定,輸出回推之 p̂/σ̂₀。落 CSV(`--out` 指定路徑)。
 
+> 實作勘誤(2026-07-18):CSV 輸出沿既有 --scan 之 stdout 慣例(shell 重導向),未實作 --out 參數。
+
 ## 7. 測試(Catch2,tag [fitter][qsigma],固定 seed 全確定性)
 
 | ID | 內容 | 準則 |

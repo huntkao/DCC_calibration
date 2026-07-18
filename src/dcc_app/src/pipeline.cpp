@@ -54,6 +54,7 @@ RunResult run(const dcc::io::AppConfig& cfg, const std::string& disp_seq_json,
     std::vector<double> wts;  // WLS 每幀權重 w = q^γ(q 為聚合後 quality)
     if (want_wls && !res.seq.quality.empty()) {
       wts.resize(n);
+      // NaN quality → std::max 保 NaN → pow 傳播 NaN → core 端 !(w>0) 視為剔除(與 q=0 語意一致)
       for (size_t f = 0; f < n; ++f)
         wts[f] = std::pow(std::max(res.seq.quality[f][ri], 0.0), cfg.weight_gamma);
       fit_opts.weights = &wts;

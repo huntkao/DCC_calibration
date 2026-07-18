@@ -3,7 +3,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <limits>
-#include <numeric>
 #include <random>
 
 #include "dcc_core/error.hpp"
@@ -109,6 +108,22 @@ TEST_CASE("fitter: wls_inverse 權重語意——等權≡反向、w=0 形同剔
   REQUIRE(std::fabs(c.dcc - d.dcc) / d.dcc < 1e-12);
   REQUIRE(c.n_valid == 10);  // 非 NaN 計數不受權重影響
   REQUIRE(d.n_valid == 8);
+
+  // w=−1(負權重)形同剔除:與 NaN 置換後之反向比對
+  std::vector<double> wneg(dacs.size(), 1.0);
+  wneg.front() = -1.0;
+  wneg.back() = -1.0;
+  wls.weights = &wneg;
+  const auto e = fit_region(dacs, disp, wls);
+  REQUIRE(std::fabs(e.dcc - d.dcc) / d.dcc < 1e-12);
+
+  // w=NaN 形同剔除:與 NaN 置換後之反向比對
+  std::vector<double> wnan(dacs.size(), 1.0);
+  wnan.front() = kNaN;
+  wnan.back() = kNaN;
+  wls.weights = &wnan;
+  const auto f = fit_region(dacs, disp, wls);
+  REQUIRE(std::fabs(f.dcc - d.dcc) / d.dcc < 1e-12);
 
   // 全零權重 → E-D03
   const std::vector<double> zeros(dacs.size(), 0.0);

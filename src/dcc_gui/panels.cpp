@@ -146,7 +146,7 @@ void draw_config_panel(GuiState& s) {
       ch = true;
     }
     if (s.cfg.fitter == dcc::regression::Fitter::wls_inverse)
-      ch |= slider_d("weight_gamma", &s.cfg.weight_gamma, 0.0f, 4.0f, "%.2f");
+      ch |= slider_d("weight_gamma", &s.cfg.weight_gamma, 0.0f, 8.0f, "%.2f");
   }
   if (ImGui::CollapsingHeader("打包 / 聚合")) {
     ch |= ImGui::SliderInt("q_format", &s.cfg.q_format, 4, 8);

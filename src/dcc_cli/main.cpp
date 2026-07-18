@@ -166,7 +166,8 @@ int main(int argc, char** argv) {
                 // 槓桿修正(Task 5 已確認之計畫勘誤):擬合殘差被 hat matrix 收縮
                 // (n=10、2 參數;高槓桿×高 σ 端點最劇),直接餵 calibrate 會使 p̂
                 // 系統性低估,須除以 √(1−h_ff) 還原(參考 UT-Q2 同款修正)。
-                // h_ff 只依 res.dacs,迴圈外先算好每幀的修正因子。
+                // h_ff 只依 res.dacs,區域/幀迴圈外先算好每幀的修正因子
+                // (h 僅依 dacs,逐 seed 重算屬冗餘但量可忽略)。
                 const double n = static_cast<double>(res.dacs.size());
                 double dmean = 0.0;
                 for (int d : res.dacs) dmean += static_cast<double>(d);
