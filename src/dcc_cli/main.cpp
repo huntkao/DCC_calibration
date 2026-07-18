@@ -102,6 +102,10 @@ int main(int argc, char** argv) {
       if (has_flag(argc, argv, "--fitter-scan")) {
         int seeds = 50;
         if (const char* v = arg_value(argc, argv, "--fs-seeds")) seeds = std::stoi(v);
+        if (seeds < 2) {
+          std::fprintf(stderr, "--fs-seeds 須 ≥ 2(CV 需樣本變異)\n");
+          return 3;
+        }
         const double sigmas[] = {0.2, 0.5, 1.0, 2.0};
         struct Combo { dcc::regression::Fitter f; double gamma; };
         const Combo combos[] = {
