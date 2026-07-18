@@ -3,6 +3,7 @@ add_library(dcc_core STATIC
   src/sweep.cpp
   src/eeprom_codec.cpp
   src/regression.cpp
+  src/qsigma.cpp
   src/focus.cpp
   src/validate.cpp
   src/aggregate.cpp
