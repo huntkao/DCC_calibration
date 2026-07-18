@@ -13,6 +13,7 @@
 #include <implot.h>
 
 #include "dcc_app/session.hpp"
+#include "dcc_core/regression.hpp"
 #include "dcc_io/config.hpp"
 #include "dcc_io/raw_reader.hpp"
 
@@ -138,6 +139,14 @@ void draw_config_panel(GuiState& s) {
                            s.cfg.sweep.num_positions);
     ch |= slider_d("r2_warn", &s.cfg.r2_warn, 0.90f, 1.00f, "%.3f");
     ch |= slider_d("smooth_limit", &s.cfg.smooth_limit, 0.05f, 0.50f, "%.3f");
+    const char* fitters[] = {"ols_forward", "ols_inverse", "wls_inverse", "deming"};
+    int fi = static_cast<int>(s.cfg.fitter);
+    if (ImGui::Combo("regression.fitter", &fi, fitters, 4)) {
+      s.cfg.fitter = static_cast<dcc::regression::Fitter>(fi);
+      ch = true;
+    }
+    if (s.cfg.fitter == dcc::regression::Fitter::wls_inverse)
+      ch |= slider_d("weight_gamma", &s.cfg.weight_gamma, 0.0f, 4.0f, "%.2f");
   }
   if (ImGui::CollapsingHeader("打包 / 聚合")) {
     ch |= ImGui::SliderInt("q_format", &s.cfg.q_format, 4, 8);
