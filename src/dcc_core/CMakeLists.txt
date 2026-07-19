@@ -4,6 +4,7 @@ add_library(dcc_core STATIC
   src/eeprom_codec.cpp
   src/regression.cpp
   src/qsigma.cpp
+  src/chart_dist.cpp
   src/focus.cpp
   src/validate.cpp
   src/aggregate.cpp

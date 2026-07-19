@@ -14,6 +14,7 @@ add_executable(dcc_tests
   ut05_regression_test.cpp
   fitter_test.cpp
   qsigma_test.cpp
+  chart_dist_test.cpp
   ut06_focus_test.cpp
   ut07_validate_test.cpp
   ut08_eeprom_test.cpp
