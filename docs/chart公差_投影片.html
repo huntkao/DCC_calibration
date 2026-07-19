@@ -274,8 +274,8 @@
       <strong>正算</strong>:給定 cm 偏移範圍 → 掃描表(<span class="mono">dist_cm, delta_cm, offset_dac, central_dcc, delta_dcc_pct</span>)。
     </div>
     <div class="col card small">
-      <strong>反算</strong>:給定可接受 ΔDCC% 預算 → 對「單邊 cm 偏移」二分搜尋(靈敏度單調)→
-      直接得「chart 擺放需準到 ±X cm」。
+      <strong>反算</strong>:給定可接受 ΔDCC% 預算 → 近/遠兩側各二分搜尋(靈敏度單調)→
+      取較嚴者(凸模型近側較敏感),直接得「chart 擺放需準到 ±X cm」。
     </div>
   </div>
   <div class="card small" style="margin-top:18px">
@@ -309,8 +309,8 @@
     <div class="col">
       <ul>
         <li>delta_cm 越大(chart 擺得越遠離標稱位置),|delta_dcc_pct| 單調變大——靈敏度單調,支撐反算二分搜尋的正確性。</li>
-        <li>正負不完全對稱(+3cm → +1.75%;−3cm(=delta +3 對應 dist 更遠)→ −1.24%):
-          因 DAC = a + b/dist 是 1/dist 的線性函數,遠端(dist 越大)DAC 變化率較小。</li>
+        <li>正負不完全對稱(delta_cm=−3(chart 更近)→ +1.75%;delta_cm=+3(chart 更遠)→ −1.24%):
+          因 DAC = a + b/dist 是 1/dist 的線性函數(對 dist 為凸),近端 DAC 變化率較大,故近側較敏感。</li>
         <li>delta_cm=0(標稱位置)為基準點,central_dcc = 12.804411、delta_dcc_pct 定義為 0。</li>
       </ul>
     </div>
@@ -324,24 +324,25 @@
   <h2>反算 demo:給定 1% DCC 誤差預算,nl 越大公差越嚴</h2>
   <div class="cols">
     <div class="col card tile" style="border-color:var(--s-fwd)">
-      <div class="v" style="color:var(--s-fwd)">±2.350<span style="font-size:20px;color:var(--muted)"> cm</span></div>
-      <div class="k"><span class="mono">--nl 0.05</span>(示範)<br>budget = 1.00%,標稱 19.05 cm</div>
+      <div class="v" style="color:var(--s-fwd)">±1.851<span style="font-size:20px;color:var(--muted)"> cm</span></div>
+      <div class="k"><span class="mono">--nl 0.05</span>(示範)<br>budget = 1.00%,標稱 19.05 cm<br><span class="muted">近側 1.851 / 遠側 2.350</span></div>
     </div>
     <div class="col card tile" style="border-color:var(--s-inv)">
-      <div class="v" style="color:var(--s-inv)">±1.112<span style="font-size:20px;color:var(--muted)"> cm</span></div>
-      <div class="k"><span class="mono">--nl 0.10</span>(示範)<br>budget = 1.00%,標稱 19.05 cm</div>
+      <div class="v" style="color:var(--s-inv)">±0.977<span style="font-size:20px;color:var(--muted)"> cm</span></div>
+      <div class="k"><span class="mono">--nl 0.10</span>(示範)<br>budget = 1.00%,標稱 19.05 cm<br><span class="muted">近側 0.977 / 遠側 1.112</span></div>
     </div>
   </div>
   <div class="card small" style="margin-top:20px">
     <span class="mono">$ ./build/src/dcc_cli/dcc_cal --dry-run --chart-tol --nl 0.05 --dcc-budget 1.0</span><br>
     <span class="mono muted">...(正算表)...</span><br>
     <span class="mono muted"># 反算:中央 DCC 誤差 ≤ 1.00% 對應之 chart 距離公差</span><br>
-    <span class="mono">chart 擺放需準到 ±2.350 cm(標稱 19.05 cm)</span>
+    <span class="mono">chart 擺放需準到 ±1.851 cm(標稱 19.05 cm;兩側較嚴者)</span><br>
+    <span class="mono muted"># 不對稱(凸模型):更近側 1.851 cm、更遠側 2.350 cm</span>
   </div>
   <ul style="margin-top:18px">
-    <li><strong>nl 加倍(0.05→0.10),允許公差幾乎減半</strong>(±2.350 → ±1.112 cm)——與「nl 是傳導係數」的因果模型一致:
+    <li><strong>nl 加倍(0.05→0.10),允許公差幾乎減半</strong>(±1.851 → ±0.977 cm)——與「nl 是傳導係數」的因果模型一致:
       nl 越大,同樣 cm 偏移被放大成越大的 DCC 誤差,治具就必須擺得更準。</li>
-    <li>反算演算法:二分搜「單邊 |Δcm|」使 |ΔDCC%| 命中 budget,50 次迭代收斂(閉式解不存在時仍可用)。</li>
+    <li>反算演算法:近/遠兩側各二分搜「|Δcm|」使 |ΔDCC%| 命中 budget,對外保證取兩側較嚴者(近側,凸模型較敏感),避免以遠側較寬鬆值誤導擺放精度。</li>
     <li>nl=0 對照(工具自洽性驗證,見 IT-C1):任意距離公差下 ΔDCC ≡ 0,反算會回報「範圍內誤差皆 &lt; 預算」。</li>
   </ul>
   <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具</span><span>實測結果</span></div>

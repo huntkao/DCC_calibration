@@ -6,6 +6,7 @@
 //   dcc_cal --dry-run --chart-tol --nl N [--vcm-cal d1:cm1,d2:cm2] [--chart-dist CM]
 //                                        [--dcc-budget PCT] [--scan-range-cm CM] [--scan-steps N]
 // 結束碼:0 = PASS、1 = 判定 FAIL、2 = 中止(E-xx)、3 = 參數錯誤。
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -280,21 +281,33 @@ int main(int argc, char** argv) {
           std::printf("%.3f,%.3f,%.3f,%.6f,%.4f\n", nominal_cm + dc, dc, off,
                       central(dc), err_pct(dc));
         }
-        // 反算:二分求 |ΔDCC%| == budget 之單邊 Δcm(靈敏度對 |Δcm| 單調)
-        double lo = 0.0, hi = range_cm, tol_cm = -1.0;
-        if (std::fabs(err_pct(hi)) >= budget) {
+        // 反算:分別對「更近(-)/更遠(+)」二分求達 budget 之 |Δcm|。
+        // DAC=a+b/dist 為凸函數 → 近側靈敏度較高、較早破 budget,故近/遠公差不對稱;
+        // 對外保證取兩側較嚴者(min),避免以較寬鬆的遠側值誤導擺放精度(鐵律5)。
+        auto solve_side = [&](double sign) -> double {  // sign=+1 遠、-1 近;回傳 |Δcm| 或 -1
+          if (std::fabs(err_pct(sign * range_cm)) < budget) return -1.0;
+          double lo = 0.0, hi = range_cm;
           for (int it = 0; it < 50; ++it) {
             const double mid = 0.5 * (lo + hi);
-            if (std::fabs(err_pct(mid)) < budget) lo = mid; else hi = mid;
+            if (std::fabs(err_pct(sign * mid)) < budget) lo = mid; else hi = mid;
           }
-          tol_cm = 0.5 * (lo + hi);
-        }
+          return 0.5 * (lo + hi);
+        };
+        const double tol_near = solve_side(-1.0);  // chart 更近(dist 更小)
+        const double tol_far = solve_side(+1.0);   // chart 更遠(dist 更大)
         std::printf("\n# 反算:中央 DCC 誤差 ≤ %.2f%% 對應之 chart 距離公差\n", budget);
-        if (tol_cm >= 0.0)
-          std::printf("chart 擺放需準到 ±%.3f cm(標稱 %.2f cm)\n", tol_cm, nominal_cm);
-        else
+        if (tol_near < 0.0 && tol_far < 0.0) {
           std::printf("在 ±%.2f cm 範圍內 DCC 誤差皆 < %.2f%%(nl 太小或範圍太窄)\n",
                       range_cm, budget);
+        } else {
+          // 任一側未破 → 該側以 range_cm 為下界(保守)
+          const double n = (tol_near >= 0.0) ? tol_near : range_cm;
+          const double f = (tol_far >= 0.0) ? tol_far : range_cm;
+          const double guarantee = std::min(n, f);
+          std::printf("chart 擺放需準到 ±%.3f cm(標稱 %.2f cm;兩側較嚴者)\n",
+                      guarantee, nominal_cm);
+          std::printf("# 不對稱(凸模型):更近側 %.3f cm、更遠側 %.3f cm\n", n, f);
+        }
         return 0;
       }
 
