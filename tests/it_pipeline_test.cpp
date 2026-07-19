@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "dcc_app/session.hpp"
+#include "dcc_core/chart_dist.hpp"
 #include "dcc_core/sweep.hpp"
 #include "dcc_io/config.hpp"
 #include "dcc_sim/synth.hpp"
@@ -516,4 +517,54 @@ TEST_CASE("IT: wls_inverse——有 quality 走加權 PASS;無 quality 退化等
   for (const auto& w : no_q.warnings)
     if (w.find("退化為等權") != std::string::npos) warned = true;
   REQUIRE(warned);
+}
+
+TEST_CASE("IT-C1: chart 距離公差 → DCC 誤差鏈路(單調 + nl=0 不敏感 + 反算閉環)",
+          "[chart_dist][oq3]") {
+  const auto cfg = app_cfg();
+  // 示範 VCM 標定:INF 220≈200cm、MACRO 620≈10cm
+  const auto model = dcc::chart_dist::calibrate_two_point(220.0, 200.0, 620.0, 10.0);
+  const double nominal_dac = 420.0;  // 掃描窗中點 = 合焦設計點
+  const double nominal_cm = dcc::chart_dist::dac_to_dist(model, nominal_dac);
+  REQUIRE(nominal_cm > 0.0);
+
+  // 中央 4 區平均 DCC(相對 Δcm=0 基準)之誤差 %,nl 為傳導係數
+  auto central_dcc = [&](double delta_cm, double nl) {
+    auto spec = base_spec(cfg);
+    spec.nonlinearity = nl;
+    const double new_dac = dcc::chart_dist::dist_to_dac(model, nominal_cm + delta_cm);
+    spec.focus_center = nominal_dac + (new_dac - nominal_dac);  // = new_dac(顯式表意)
+    const auto res = dcc::app::run(cfg, dcc::sim::generate(spec), kFlatGain, kFlatGain);
+    double cd = 0.0;
+    for (size_t idx : {19u, 20u, 27u, 28u}) cd += res.regions[idx].dcc_raw_px;
+    return cd / 4.0;
+  };
+
+  // 誤差 %:相對 delta=0 之基準
+  auto err_pct = [&](double delta_cm, double nl) {
+    const double base = central_dcc(0.0, nl);
+    return 100.0 * (central_dcc(delta_cm, nl) - base) / base;
+  };
+
+  // (a) nl=0:理想線性,chart 距離公差對 DCC 完全不敏感(開發紀錄 §3.3)
+  REQUIRE(std::fabs(err_pct(1.0, 0.0)) < 0.05);
+  REQUIRE(std::fabs(err_pct(2.0, 0.0)) < 0.05);
+
+  // (b) nl=0.05:誤差隨 |Δcm| 單調上升
+  const double e05 = std::fabs(err_pct(0.5, 0.05));
+  const double e10 = std::fabs(err_pct(1.0, 0.05));
+  const double e20 = std::fabs(err_pct(2.0, 0.05));
+  REQUIRE(e10 > e05);
+  REQUIRE(e20 > e10);
+  REQUIRE(e20 > 0.05);  // 明顯非零
+
+  // (c) 反算閉環:二分求「誤差達 budget」之 Δcm,代回正算命中 budget(±5% 相對)
+  const double nl = 0.05, budget = 1.0;
+  double lo = 0.0, hi = 5.0;
+  for (int it = 0; it < 50; ++it) {
+    const double mid = 0.5 * (lo + hi);
+    if (std::fabs(err_pct(mid, nl)) < budget) lo = mid; else hi = mid;
+  }
+  const double tol_cm = 0.5 * (lo + hi);
+  REQUIRE(std::fabs(std::fabs(err_pct(tol_cm, nl)) - budget) < 0.05 * budget);
 }
