@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC 回歸 fitter 精度研究 — 反向回歸・WLS・EIV 與 q→σ 標定</title>
+<style>
+  /* ── 版面基礎(light 版面、系統字型、零外部資源)──────────────── */
+  :root {
+    --page:    #f9f9f7;  --surface: #fcfcfb;
+    --ink:     #0b0b0b;  --ink-2:   #52514e;  --muted: #898781;
+    --grid:    #e1e0d9;  --axis:    #c3c2b7;
+    --s-fwd:   #2a78d6;  /* 前向 OLS  */
+    --s-inv:   #eb6834;  /* 反向 / Deming */
+    --s-wls:   #4a3aa7;  /* WLS γ=1  */
+    --accent:  #2a78d6;
+    --good:    #006300;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "PingFang TC", "Heiti TC",
+                 "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    overflow: hidden;
+  }
+  #deck { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #stage { flex: none; width: 1280px; height: 720px; position: relative; transform-origin: center center; }
+  .slide {
+    position: absolute; inset: 0; padding: 56px 72px;
+    background: var(--surface); border: 1px solid rgba(11,11,11,0.10);
+    border-radius: 10px; display: none; flex-direction: column;
+  }
+  .slide.active { display: flex; }
+
+  .kicker {
+    font-size: 16px; font-weight: 700; letter-spacing: .12em;
+    color: var(--accent); margin-bottom: 6px;
+  }
+  h2 { font-size: 33px; font-weight: 750; line-height: 1.25; margin-bottom: 20px; }
+  .content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .cols { display: flex; gap: 36px; flex: 1; min-height: 0; }
+  .col { flex: 1; min-width: 0; }
+
+  p, li { font-size: 20.5px; line-height: 1.62; color: var(--ink); }
+  ul { padding-left: 1.3em; }
+  li { margin-bottom: .5em; }
+  li::marker { color: var(--accent); }
+  .small, .cap { font-size: 16px; color: var(--ink-2); line-height: 1.5; }
+  .muted { color: var(--muted); }
+  strong { font-weight: 720; }
+  em.term { font-style: normal; font-weight: 700; color: var(--accent); }
+
+  .math {
+    font-size: 21px; line-height: 1.7; background: #f4f3f0;
+    border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;
+    padding: 12px 18px; margin: 10px 0;
+  }
+  .math .frac { display: inline-block; text-align: center; vertical-align: middle; margin: 0 3px; }
+  .math .frac > span { display: block; padding: 0 6px; }
+  .math .frac > span:first-child { border-bottom: 1.5px solid var(--ink); }
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; }
+  code { background: #efeeea; border-radius: 4px; padding: 1px 6px; }
+
+  table.tbl { border-collapse: collapse; width: 100%; }
+  table.tbl th, table.tbl td {
+    font-size: 18.5px; padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--grid); line-height: 1.45;
+  }
+  table.tbl th { color: var(--ink-2); font-weight: 700; border-bottom: 2px solid var(--axis); }
+  table.tbl td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  table.tbl th.num { text-align: right; }
+
+  .chip { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 7px; vertical-align: -1px; }
+  .chip.fwd { background: var(--s-fwd); } .chip.inv { background: var(--s-inv); } .chip.wls { background: var(--s-wls); }
+
+  .card {
+    background: #f4f3f0; border: 1px solid var(--grid); border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .tile { text-align: center; padding: 18px 12px; }
+  .tile .v { font-size: 46px; font-weight: 780; line-height: 1.1; }
+  .tile .k { font-size: 16px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
+
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .fbox {
+    background: #f4f3f0; border: 1.5px solid var(--axis); border-radius: 10px;
+    padding: 12px 16px; font-size: 18px; line-height: 1.5; flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .fbox b { font-size: 19px; }
+  .farrow { align-self: center; padding: 0 10px; font-size: 26px; color: var(--muted); flex: 0 0 auto; }
+
+  .foot {
+    position: absolute; left: 72px; right: 72px; bottom: 20px;
+    display: flex; justify-content: space-between;
+    font-size: 13.5px; color: var(--muted);
+  }
+  #pageno { position: absolute; right: 24px; bottom: 18px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 15px; fill: var(--muted); }
+  .tick-label { font-size: 14.5px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .dlabel { font-size: 16px; font-weight: 700; }
+  .note { font-size: 14.5px; fill: var(--ink-2); }
+
+  /* 封面 */
+  .cover { justify-content: center; }
+  .cover .kicker { font-size: 18px; }
+  .cover h1 { font-size: 54px; font-weight: 800; line-height: 1.22; margin: 10px 0 16px; }
+  .cover .sub { font-size: 26px; color: var(--ink-2); margin-bottom: 34px; }
+  .cover .headline {
+    font-size: 23px; line-height: 1.6; background: #f4f3f0;
+    border-left: 5px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 22px; max-width: 980px;
+  }
+  .cover .meta { margin-top: 40px; font-size: 16px; color: var(--muted); line-height: 1.7; }
+
+  @media print {
+    body { overflow: visible; background: #fff; }
+    #deck { position: static; display: block; }
+    #stage { width: auto; height: auto; transform: none !important; }
+    .slide { position: relative; display: flex !important; page-break-after: always; width: 1280px; height: 720px; margin: 0 auto; border: none; }
+    #pageno { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="deck"><div id="stage">
+
+<!-- ═══ 1 封面 ═══════════════════════════════════════════════════════ -->
+<section class="slide cover active">
+  <div class="kicker">DCC_CALIBRATION · M2 離線實驗</div>
+  <h1>DCC 回歸 fitter 精度研究</h1>
+  <div class="sub">反向回歸 · 加權最小平方(WLS)· EIV(Deming)與 q→σ 標定</div>
+  <div class="headline">
+    <strong>結論:</strong>典型產線噪聲(σ ≤ 0.5 raw px)下前向 OLS 偏差 &lt; 0.04%,可忽略——<strong>維持預設</strong>;
+    大噪聲場景(σ ≥ 1)建議啟用 <strong>WLS(γ=1)</strong>:CV 改善 ~9%、RMSE 四個噪聲等級全域最優。
+    單純換成反向回歸消偏,綜合精度反而變差。
+  </div>
+  <div class="meta">
+    2026-07-18 · 資料:<span class="mono">dcc_cal --dry-run --fitter-scan</span>(50 seeds,focus_linked 誠實 quality)<br>
+    對應文件:docs/fitter實驗_反向WLS與EIV.md · SPEC-003 §5 · SPEC-004 §3a.1 · SPEC-005 §8 #2
+  </div>
+  <div class="foot"><span>← → 方向鍵翻頁</span><span>共 12 頁</span></div>
+</section>
+
+<!-- ═══ 2 理論思路:EIV ══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">理論思路 1/2</div>
+  <h2>問題本質:噪聲全在自變數 —— Errors-in-Variables</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.08">
+      <svg viewBox="0 0 560 400" width="100%" aria-label="EIV 示意:x 軸噪聲使前向 OLS 斜率衰減">
+        <line x1="60" y1="360" x2="530" y2="360" stroke="var(--axis)" stroke-width="1.5"/>
+        <line x1="60" y1="360" x2="60"  y2="20"  stroke="var(--axis)" stroke-width="1.5"/>
+        <text x="295" y="392" text-anchor="middle" class="axis-label">disparity(量測,含噪 σ)</text>
+        <text x="24" y="190" text-anchor="middle" class="axis-label" transform="rotate(-90 24 190)">DAC(指令位置,精確)</text>
+        <!-- 真實線 -->
+        <line x1="66" y1="350" x2="500" y2="25" stroke="var(--ink)" stroke-width="2.5"/>
+        <!-- 前向 OLS(衰減,較平——為示意誇大斜率差) -->
+        <line x1="66" y1="315" x2="500" y2="70" stroke="var(--s-fwd)" stroke-width="2.5" stroke-dasharray="8 6"/>
+        <!-- 樣本點 + 水平誤差棒(噪聲在 x) -->
+        <g stroke="var(--s-inv)" stroke-width="2">
+          <line x1="72"  y1="340" x2="112" y2="340"/><line x1="116" y1="307" x2="156" y2="307"/>
+          <line x1="160" y1="274" x2="200" y2="274"/><line x1="204" y1="241" x2="244" y2="241"/>
+          <line x1="248" y1="208" x2="288" y2="208"/><line x1="292" y1="175" x2="332" y2="175"/>
+          <line x1="336" y1="142" x2="376" y2="142"/><line x1="380" y1="109" x2="420" y2="109"/>
+          <line x1="424" y1="76"  x2="464" y2="76"/> <line x1="468" y1="43"  x2="508" y2="43"/>
+        </g>
+        <g fill="var(--surface)" stroke="var(--ink)" stroke-width="2">
+          <circle cx="92" cy="340" r="5"/><circle cx="136" cy="307" r="5"/><circle cx="180" cy="274" r="5"/>
+          <circle cx="224" cy="241" r="5"/><circle cx="268" cy="208" r="5"/><circle cx="312" cy="175" r="5"/>
+          <circle cx="356" cy="142" r="5"/><circle cx="400" cy="109" r="5"/><circle cx="444" cy="76" r="5"/>
+          <circle cx="488" cy="43" r="5"/>
+        </g>
+        <text x="330" y="20" class="dlabel" fill="var(--ink)">真實斜率 k</text>
+        <text x="498" y="205" text-anchor="end" class="dlabel" fill="var(--s-fwd)">前向 OLS:斜率被拉平(衰減)</text>
+        <text x="280" y="345" class="note" fill="var(--s-inv)">水平誤差棒 = 噪聲在 x</text>
+      </svg>
+    </div>
+    <div class="col">
+      <ul>
+        <li>回歸模型 <strong>DAC = k·disp + b</strong>:DAC 是下給 VCM 的<em class="term">指令</em>(無噪),
+            disparity 是 SAD <em class="term">量測</em>(含噪)——噪聲全在自變數 x。</li>
+        <li>OLS 假設「x 精確、y 含噪」被反轉 → 前向斜率有<strong>系統性衰減偏差</strong>(attenuation)。</li>
+        <li><strong>解法直覺:把回歸方向反過來。</strong>擬合 disp = a·DAC + c(噪聲回到因變數,OLS 假設成立),再取 k = 1/a。</li>
+        <li>反向後 quality 可經 <em class="term">q→σ 標定</em>轉成逐樣本權重 → WLS 進一步降變異。</li>
+      </ul>
+      <div class="card small" style="margin-top:12px">
+        定位:<strong>實驗導向</strong>。預設 fitter 不動(位元級不變),新增可組態 fitter 以蒙地卡羅量化改善,依數字決定是否換預設。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>理論思路</span></div>
+</section>
+
+<!-- ═══ 3 數學 I:四 fitter ══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">數學原理 1/3</div>
+  <h2>四種 fitter 的閉式解(x = disp、y = DAC,中心化矩 S<sub>xx</sub>、S<sub>xy</sub>、S<sub>yy</sub>)</h2>
+  <table class="tbl" style="margin-top:4px">
+    <tr><th style="width:190px">fitter</th><th style="width:300px">模型</th><th style="width:200px">斜率 k</th><th>偏差性質</th></tr>
+    <tr>
+      <td><span class="chip fwd"></span><strong>ols_forward</strong>(v1 預設)</td>
+      <td>擬合 y = k·x + b</td><td class="mono">S<sub>xy</sub> / S<sub>xx</sub></td>
+      <td>x 含噪 → <strong>衰減偏差</strong>(恆偏小)</td>
+    </tr>
+    <tr>
+      <td><span class="chip inv"></span><strong>ols_inverse</strong></td>
+      <td>擬合 x = a·y + c,取 k = 1/a</td><td class="mono">S<sub>yy</sub> / S<sub>xy</sub></td>
+      <td>消衰減;比值反轉引入<strong>小幅正偏</strong>(二階)</td>
+    </tr>
+    <tr>
+      <td><span class="chip wls"></span><strong>wls_inverse</strong></td>
+      <td>反向 + 逐幀權重 w<sub>f</sub> = q<sub>f</sub><sup>γ</sup></td><td class="mono">S<sup>w</sup><sub>yy</sub> / S<sup>w</sup><sub>xy</sub></td>
+      <td>消偏 + <strong>最小變異</strong>(權重 ∝ 1/σ² 時)</td>
+    </tr>
+    <tr>
+      <td><strong>deming</strong></td>
+      <td>正交式 EIV,δ = σ²<sub>DAC</sub>/σ²<sub>disp</sub></td><td class="mono">閉式解(含 δ)</td>
+      <td>δ=0 <strong>恆等反向</strong>(UT 位元級釘死);δ→∞ ≡ 前向</td>
+    </tr>
+  </table>
+  <div class="cols" style="flex:0 0 auto; margin-top:18px">
+    <div class="col card small">
+      <strong>四者共通契約</strong>:截距統一 b = ȳ − k·x̄;r² 用 Pearson(對稱);
+      樣本不足 → E-D03、斜率非正 → E-E01;WLS 之 w ≤ 0 / NaN 樣本形同剔除(= SPEC-004 §3a.1 的 q=0 語意),Σw &gt; 0 否則 E-D03。
+    </div>
+    <div class="col card small">
+      <strong>工程約束</strong>:統一加權累加器,非 WLS 時 w ≡ 1.0(IEEE 恆等乘法)——
+      <strong>前向路徑浮點運算順序與 v1 逐 bit 相同</strong>,既有 80 測試零改動全綠是最強證據。
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>數學原理</span></div>
+</section>
+
+<!-- ═══ 4 數學 II:衰減推導 ══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">數學原理 2/3</div>
+  <h2>前向衰減偏差:三步推導 + 假設模組數值驗證</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.15">
+      <p><strong>① 噪聲與 y 獨立 → 共變異不受影響</strong></p>
+      <div class="math">x̃ = x + ε,ε ~ N(0, σ²) ⇒ E[S̃<sub>xy</sub>] = S<sub>xy</sub></div>
+      <p><strong>② 但 x 的變異被噪聲灌大</strong>(中心化損失 1 自由度)</p>
+      <div class="math">E[S̃<sub>xx</sub>] = S<sub>xx</sub> + (n−1)·σ²</div>
+      <p><strong>③ 斜率期望值 → 衰減因子 att</strong></p>
+      <div class="math">
+        E[k̂<sub>fwd</sub>] ≈ k ·
+        <span class="frac"><span>S<sub>x</sub>²</span><span>S<sub>x</sub>² + σ²·(n−1)/n</span></span>
+        = k · att &nbsp;&nbsp;<span class="small">(S<sub>x</sub>² = 真值 disp 母體變異)</span>
+      </div>
+    </div>
+    <div class="col">
+      <table class="tbl">
+        <tr><th>σ (raw px)</th><th class="num">理論 bias</th><th class="num">實測 bias</th></tr>
+        <tr><td>0.2</td><td class="num">−0.02%</td><td class="num muted">+0.04%(雜訊底內)</td></tr>
+        <tr><td>0.5</td><td class="num">−0.15%</td><td class="num muted">−0.02%(雜訊底內)</td></tr>
+        <tr><td>1.0</td><td class="num">−0.59%</td><td class="num">−0.41%</td></tr>
+        <tr><td><strong>2.0</strong></td><td class="num"><strong>−2.33%</strong></td><td class="num"><strong>−2.30% ✓</strong></td></tr>
+      </table>
+      <p class="small" style="margin-top:10px">
+        假設模組:sweep 10 點、S<sub>x</sub>² = 151.2 raw px²(disparity 動態範圍 ±19.3 raw px)。
+        大 σ 時理論與實測吻合;小 σ 時偏差訊號低於 50-seed 蒙地卡羅雜訊底。
+      </p>
+      <div class="card small" style="margin-top:10px">
+        <strong>二階效應(測試容差的由來)</strong>:k̂ 是隨機比值,E[分子/分母] ≠ E[分子]/E[分母]
+        (Jensen 修正)。σ=2、n=10 時 ≈ +0.55% 系統性上修——UT-F2 斷言容差 0.008 即據此
+        + 跨平台 RNG 緩衝校準,非隨意放寬。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>數學原理</span></div>
+</section>
+
+<!-- ═══ 5 數學 III:q→σ ═════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">數學原理 3/3</div>
+  <h2>q→σ 標定:冪律回推 + γ = 2p 橋接 + 槓桿修正</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.05">
+      <div class="math">
+        σ(q) = σ₀ · q<sup>−p</sup>
+        &nbsp;⟹&nbsp; w = 1/σ(q)² ∝ q<sup>2p</sup>
+        &nbsp;⟹&nbsp; <strong>γ = 2p̂</strong>
+      </div>
+      <ul style="margin-top:8px">
+        <li><strong>程序</strong>:反向 OLS 取殘差 → 按 q 等頻分箱(8 箱)→ 每箱 σ̂ = RMS(|e|)→
+            <strong>log σ̂ 對 log q̄ 直線擬合</strong>:斜率 = −p、截距 = ln σ₀。</li>
+        <li>Sim 誠實模型 σ<sub>eff</sub> = σ₀/√q ⇒ 真值 p = 0.5 ⇒ γ = 1,兩半題目<strong>閉環自洽</strong>。</li>
+        <li>真實 SAD quality(曲線形狀導出,語意未知)到位後:<strong>跑同一程序即得該資料的 γ</strong>,不需對方提供公式。</li>
+      </ul>
+      <div class="card small" style="margin-top:8px">
+        <strong>⚠ 槓桿修正(實作勘誤)</strong>:n=10 的擬合殘差被 hat matrix 收縮,
+        e = (I−H)ε——高槓桿且高噪的端點被「吃掉」最多,直接用 |e| 會把冪律壓平
+        (p̂ ≈ 0.24)。修正:<span class="mono">|e| / √(1−h<sub>ff</sub>)</span>(studentized)→ p̂ ≈ 0.40。
+      </div>
+    </div>
+    <div class="col">
+      <svg viewBox="0 0 520 210" width="100%" aria-label="log-log 冪律擬合示意">
+        <line x1="50" y1="180" x2="490" y2="180" stroke="var(--axis)" stroke-width="1.5"/>
+        <line x1="50" y1="180" x2="50" y2="15" stroke="var(--axis)" stroke-width="1.5"/>
+        <text x="270" y="205" text-anchor="middle" class="axis-label">log q̄(箱)</text>
+        <text x="20" y="100" text-anchor="middle" class="axis-label" transform="rotate(-90 20 100)">log σ̂</text>
+        <line x1="60" y1="150" x2="470" y2="45" stroke="var(--s-wls)" stroke-width="2.5"/>
+        <g fill="var(--surface)" stroke="var(--s-wls)" stroke-width="2">
+          <circle cx="75" cy="152" r="5"/><circle cx="130" cy="134" r="5"/><circle cx="185" cy="125" r="5"/>
+          <circle cx="240" cy="105" r="5"/><circle cx="295" cy="96" r="5"/><circle cx="350" cy="78" r="5"/>
+          <circle cx="405" cy="66" r="5"/><circle cx="455" cy="50" r="5"/>
+        </g>
+        <text x="245" y="45" class="dlabel" fill="var(--s-wls)">斜率 = −p̂(r² = 0.979)</text>
+      </svg>
+      <svg viewBox="0 0 520 190" width="100%" style="margin-top:8px" aria-label="逐幀槓桿 h_ff 呈 U 型">
+        <line x1="50" y1="160" x2="490" y2="160" stroke="var(--axis)" stroke-width="1.5"/>
+        <text x="270" y="184" text-anchor="middle" class="axis-label">sweep 幀(FAR → NEAR)</text>
+        <text x="20" y="90" text-anchor="middle" class="axis-label" transform="rotate(-90 20 90)">槓桿 h<tspan baseline-shift="sub" font-size="11">ff</tspan></text>
+        <g fill="var(--s-inv)">
+          <path d="M62,160 V56 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M106,160 V85 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M150,160 V107 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M194,160 V122 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M238,160 V129 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M282,160 V129 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M326,160 V122 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M370,160 V107 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M414,160 V85 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+          <path d="M458,160 V56 q0,-4 4,-4 h24 q4,0 4,4 V160 Z"/>
+        </g>
+        <text x="78" y="44" text-anchor="middle" class="note">0.345</text>
+        <text x="296" y="118" text-anchor="middle" class="note">0.103</text>
+        <text x="474" y="44" text-anchor="middle" class="note">0.345</text>
+        <text x="270" y="26" text-anchor="middle" class="note">端點 = 高槓桿 × 高噪(低 q)→ 殘差收縮最劇</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>數學原理</span></div>
+</section>
+
+<!-- ═══ 6 實驗設計 ═══════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">實驗設計</div>
+  <h2>配對蒙地卡羅:同資料、不同 fitter,差異純屬方法</h2>
+  <div class="flow" style="margin-top:8px">
+    <div class="fbox"><b>合成序列</b><span class="small">focus_linked 誠實 quality:σ<sub>eff</sub> = σ₀/√q、q 隨離焦/離軸下降(q_falloff 0.3)</span></div>
+    <div class="farrow">→</div>
+    <div class="fbox"><b>每 (σ, seed) 只合成一次</b><span class="small">σ ∈ {0.2, 0.5, 1.0, 2.0} × 50 seeds,跨 fitter 共用 → 配對比較</span></div>
+    <div class="farrow">→</div>
+    <div class="fbox"><b>6 組合擬合</b><span class="small">前向 / 反向 / Deming(δ=0)/ WLS γ ∈ {0.5, 1, 2},走完整管線(48 區)</span></div>
+    <div class="farrow">→</div>
+    <div class="fbox"><b>對真值評分</b><span class="small">中央 4 區:bias%、CV%;全 48 區:RMSE%(vs true_dcc)</span></div>
+  </div>
+  <div class="flow" style="margin-top:22px">
+    <div class="fbox" style="flex:0.9"><b>殘差支線(qsigma)</b><span class="small">取反向擬合殘差(僅 ols_inverse 組)</span></div>
+    <div class="farrow">→</div>
+    <div class="fbox"><b>槓桿修正</b><span class="small mono">|e| / √(1−h_ff)</span></div>
+    <div class="farrow">→</div>
+    <div class="fbox"><b>calibrate()</b><span class="small">等頻 8 箱 → log-log 擬合</span></div>
+    <div class="farrow">→</div>
+    <div class="fbox"><b>回推 p̂、σ̂₀</b><span class="small">對照真值 p = 0.5 驗證標定程序</span></div>
+  </div>
+  <div class="cols" style="flex:0 0 auto; margin-top:24px">
+    <div class="col card small">
+      <strong>為何配對?</strong>同 seed 同資料下比較 fitter,方法間差異不被 seed 間變異稀釋——
+      小至 1% 的 CV 差異也能穩定判讀。
+    </div>
+    <div class="col card small">
+      <strong>全程確定性</strong>:固定 seed 集,結果可重現;
+      重現命令:<span class="mono">dcc_cal --dry-run --fitter-scan</span>(CSV 落 stdout)。
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>實驗設計</span></div>
+</section>
+
+<!-- ═══ 7 結果 I:bias ═══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">實驗結果 1/3</div>
+  <h2>偏差 bias% vs 噪聲 σ:前向隨 σ² 下沉;反向轉正、量級縮小</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.5">
+      <svg viewBox="0 0 900 560" width="100%" aria-label="三種 fitter 的 bias 隨噪聲變化折線圖">
+        <!-- 格線 -->
+        <g stroke="var(--grid)" stroke-width="1">
+          <line x1="60" y1="88.6"  x2="640" y2="88.6"/><line x1="60" y1="317.1" x2="640" y2="317.1"/>
+          <line x1="60" y1="431.4" x2="640" y2="431.4"/>
+        </g>
+        <line x1="60" y1="202.9" x2="640" y2="202.9" stroke="var(--axis)" stroke-width="1.5"/>
+        <g class="tick-label" text-anchor="end">
+          <text x="52" y="93.6">+1%</text><text x="52" y="207.9">0</text>
+          <text x="52" y="322.1">−1%</text><text x="52" y="436.4">−2%</text>
+        </g>
+        <g class="tick-label" text-anchor="middle">
+          <text x="70" y="528">0.2</text><text x="253" y="528">0.5</text>
+          <text x="436" y="528">1.0</text><text x="620" y="528">2.0</text>
+        </g>
+        <text x="345" y="554" text-anchor="middle" class="axis-label">噪聲 σ(raw px)</text>
+        <!-- 雜訊底註記(σ ≤ 0.5 區) -->
+        <rect x="52" y="170" width="225" height="48" rx="8" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="63" y="158" class="note">σ ≤ 0.5:偏差皆在雜訊底(~±0.2%)內</text>
+        <!-- 折線 -->
+        <polyline points="70,198.5 253,204.8 436,249.4 620,465.3" fill="none" stroke="var(--s-fwd)" stroke-width="2.5"/>
+        <polyline points="70,194.3 253,178.7 436,144.8 620,46.0"  fill="none" stroke="var(--s-inv)" stroke-width="2.5"/>
+        <polyline points="70,196.7 253,184.9 436,158.2 620,76.7"  fill="none" stroke="var(--s-wls)" stroke-width="2.5"/>
+        <!-- 標記點(2px surface ring) -->
+        <g fill="var(--s-fwd)" stroke="var(--surface)" stroke-width="2">
+          <circle cx="70" cy="198.5" r="5.5"/><circle cx="253" cy="204.8" r="5.5"/>
+          <circle cx="436" cy="249.4" r="5.5"/><circle cx="620" cy="465.3" r="5.5"/>
+        </g>
+        <g fill="var(--s-inv)" stroke="var(--surface)" stroke-width="2">
+          <circle cx="70" cy="194.3" r="5.5"/><circle cx="253" cy="178.7" r="5.5"/>
+          <circle cx="436" cy="144.8" r="5.5"/><circle cx="620" cy="46.0" r="5.5"/>
+        </g>
+        <g fill="var(--s-wls)" stroke="var(--surface)" stroke-width="2">
+          <circle cx="70" cy="196.7" r="5.5"/><circle cx="253" cy="184.9" r="5.5"/>
+          <circle cx="436" cy="158.2" r="5.5"/><circle cx="620" cy="76.7" r="5.5"/>
+        </g>
+        <!-- 直接標籤 -->
+        <text x="636" y="51"  class="dlabel" fill="var(--s-inv)">反向 / Deming +1.37%</text>
+        <text x="636" y="86"  class="dlabel" fill="var(--s-wls)">WLS γ=1 +1.10%</text>
+        <text x="636" y="470" class="dlabel" fill="var(--s-fwd)">前向 OLS −2.30%</text>
+      </svg>
+    </div>
+    <div class="col">
+      <ul>
+        <li><strong>前向</strong>:偏差 ∝ σ²(衰減式),σ=1→2 偏差比 5.6 倍,理論吻合。</li>
+        <li><strong>反向不是零偏</strong>:比值反轉引入自身正偏(σ=2 時 +1.37%)——「偏差方向與量級改變」,非完美消偏。</li>
+        <li><strong>Deming(δ=0)與反向全表逐列相同</strong>(位元級,UT 釘死)。</li>
+        <li>σ ≤ 0.5(§3a 預算內):三者偏差都在雜訊底內,<strong>換 fitter 無利可圖</strong>。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究 · 50 seeds 配對</span><span>實驗結果</span></div>
+</section>
+
+<!-- ═══ 8 結果 II:RMSE / CV ═════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">實驗結果 2/3</div>
+  <h2>綜合精度 RMSE(相對前向):WLS 全域最優,純反向反而最差</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.5">
+      <svg viewBox="0 0 900 430" width="100%" aria-label="反向與 WLS 的 RMSE 相對前向之分組長條圖">
+        <g stroke="var(--grid)" stroke-width="1">
+          <line x1="60" y1="76.1"  x2="700" y2="76.1"/><line x1="60" y1="132.1" x2="700" y2="132.1"/>
+          <line x1="60" y1="244.2" x2="700" y2="244.2"/><line x1="60" y1="300.3" x2="700" y2="300.3"/>
+          <line x1="60" y1="356.4" x2="700" y2="356.4"/>
+        </g>
+        <g class="tick-label" text-anchor="end">
+          <text x="52" y="81">+2%</text><text x="52" y="137">+1%</text><text x="52" y="193">0</text>
+          <text x="52" y="249">−1%</text><text x="52" y="305">−2%</text><text x="52" y="361">−3%</text>
+        </g>
+        <!-- 反向(上為劣) -->
+        <g fill="var(--s-inv)">
+          <path d="M62,188.2 V186 q0,-4 4,-4 h48 q4,0 4,4 V188.2 Z"/>
+          <path d="M232,188.2 V173.7 q0,-4 4,-4 h48 q4,0 4,4 V188.2 Z"/>
+          <path d="M402,188.2 V142.3 q0,-4 4,-4 h48 q4,0 4,4 V188.2 Z"/>
+          <path d="M572,188.2 V39.2 q0,-4 4,-4 h48 q4,0 4,4 V188.2 Z"/>
+        </g>
+        <!-- WLS(下為優) -->
+        <g fill="var(--s-wls)">
+          <path d="M122,188.2 V363.6 q0,4 4,4 h48 q4,0 4,-4 V188.2 Z"/>
+          <path d="M292,188.2 V354.6 q0,4 4,4 h48 q4,0 4,-4 V188.2 Z"/>
+          <path d="M462,188.2 V331.1 q0,4 4,4 h48 q4,0 4,-4 V188.2 Z"/>
+          <path d="M632,188.2 V253.2 q0,4 4,4 h48 q4,0 4,-4 V188.2 Z"/>
+        </g>
+        <line x1="60" y1="188.2" x2="700" y2="188.2" stroke="var(--axis)" stroke-width="1.5"/>
+        <!-- 數值標籤 -->
+        <g class="note" text-anchor="middle" font-weight="700">
+          <text x="90"  y="176" fill="var(--s-inv)">+0.1%</text><text x="260" y="164" fill="var(--s-inv)">+0.3%</text>
+          <text x="430" y="132" fill="var(--s-inv)">+0.9%</text><text x="600" y="29"  fill="var(--s-inv)">+2.7%</text>
+          <text x="150" y="384" fill="var(--s-wls)">−3.2%</text><text x="320" y="375" fill="var(--s-wls)">−3.0%</text>
+          <text x="490" y="352" fill="var(--s-wls)">−2.6%</text><text x="660" y="274" fill="var(--s-wls)">−1.2%</text>
+        </g>
+        <g class="tick-label" text-anchor="middle">
+          <text x="120" y="412">σ = 0.2</text><text x="290" y="412">σ = 0.5</text>
+          <text x="460" y="412">σ = 1.0</text><text x="630" y="412">σ = 2.0</text>
+        </g>
+        <text x="712" y="193" class="note">前向 = 0 基準</text>
+        <!-- 圖例 -->
+        <rect x="712" y="60" width="14" height="14" rx="4" fill="var(--s-inv)"/>
+        <text x="732" y="72" class="note">反向 / Deming</text>
+        <rect x="712" y="84" width="14" height="14" rx="4" fill="var(--s-wls)"/>
+        <text x="732" y="96" class="note">WLS γ=1</text>
+      </svg>
+    </div>
+    <div class="col">
+      <div class="card tile" style="margin-bottom:14px">
+        <div class="v" style="color:var(--good)">~9%</div>
+        <div class="k">WLS(γ=1)相對等權反向之 <strong>CV 改善</strong><br>四個 σ 一致落在 9.0–9.3%</div>
+      </div>
+      <ul>
+        <li><strong>純反向的教訓</strong>:消偏最徹底,但變異增加把 RMSE 效益吃光——全部 4 個 σ 下綜合精度<strong>最差</strong>。</li>
+        <li><strong>WLS 兩頭賺</strong>:保留大半消偏 + 壓低變異 → RMSE 全域最低。</li>
+        <li>γ 誤標不敏感:γ=0.5 / 2 的 CV 差距僅 3.1–4.7%,遠小於「用不用 WLS」的 ~9%。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究 · RMSE 為全 48 區對真值</span><span>實驗結果</span></div>
+</section>
+
+<!-- ═══ 9 結果 III:qsigma ═══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">實驗結果 3/3</div>
+  <h2>qsigma 標定驗證:程序可用,惟需知悉一階近似的殘留低估</h2>
+  <div class="cols">
+    <div class="col">
+      <table class="tbl">
+        <tr><th>σ</th><th class="num">p̂(真值 0.5)</th><th class="num">σ̂₀</th><th class="num">r²</th><th class="num">bins</th></tr>
+        <tr><td>0.2</td><td class="num">0.4041</td><td class="num">0.2136</td><td class="num">0.9789</td><td class="num">8</td></tr>
+        <tr><td>0.5</td><td class="num">0.4041</td><td class="num">0.5340</td><td class="num">0.9789</td><td class="num">8</td></tr>
+        <tr><td>1.0</td><td class="num">0.4041</td><td class="num">1.0679</td><td class="num">0.9789</td><td class="num">8</td></tr>
+        <tr><td>2.0</td><td class="num">0.4041</td><td class="num">2.1359</td><td class="num">0.9789</td><td class="num">8</td></tr>
+      </table>
+      <div class="card small" style="margin-top:14px">
+        <strong>p̂ 四列相同不是 bug,是數學必然</strong>:p 是 log-log 斜率,對噪聲的
+        <em>等比縮放</em>不變(同一 seed 集下換 σ 只是縮放噪聲)。
+        唯 σ̂₀ 隨 σ 等比上升(0.21 → 2.14),是表中唯一該動的欄位。
+      </div>
+    </div>
+    <div class="col">
+      <ul>
+        <li><strong>σ̂₀ 誤差 ≈ 6.8%</strong>(如 σ=0.5 → σ̂₀=0.534)——量級回推可靠。</li>
+        <li><strong>p̂ = 0.40 vs 真值 0.5</strong>:studentized 修正在異方差下僅一階近似,殘留系統性低估
+            → γ̂ = 2p̂ ≈ 0.8(理論 1.0)。</li>
+        <li>但 <strong>WLS 對 γ 誤標不敏感</strong>(前頁):γ̂=0.8 與 γ=1 的效果差距可忽略
+            → <strong>標定閉環在實務上成立</strong>。</li>
+        <li>r² = 0.979 可作真實資料標定的品質參考基準。</li>
+      </ul>
+      <div class="card small" style="margin-top:8px">
+        測試釘死:UT-Q1 純淨回推 p̂ ∈ [0.4, 0.6]、σ₀ 誤差 &lt; 10%;
+        UT-Q2 閉環——標定 γ̂ 餵 WLS 的變異 ≈ 真 γ=1 之 WLS(比值 1.007)。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>實驗結果</span></div>
+</section>
+
+<!-- ═══ 10 計畫外發現 ════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">過程洞察</div>
+  <h2>三個計畫外發現(都已修復、勘誤入文件)</h2>
+  <div class="cols" style="margin-top:6px">
+    <div class="col card">
+      <p style="font-size:19px"><strong>① 擬合殘差 ≠ 噪聲</strong></p>
+      <p class="small" style="margin-top:8px">
+        n=10、2 參數擬合的殘差被 hat matrix 收縮 e=(I−H)ε;端點槓桿 h=0.345 又正是高噪(低 q)處
+        → 冪律被壓平,p̂ 掉到 0.24。
+      </p>
+      <p class="small" style="margin-top:10px"><strong>修復</strong>:studentized 修正
+        <span class="mono">|e|/√(1−h_ff)</span> → p̂ 0.40。</p>
+      <p class="small muted" style="margin-top:10px">教訓:小樣本殘差要先還原收縮,才能當噪聲樣本用。</p>
+    </div>
+    <div class="col card">
+      <p style="font-size:19px"><strong>② 排序鍵污染分箱</strong></p>
+      <p class="small" style="margin-top:8px">
+        <span class="mono">std::sort</span> 對 pair 是字典序:q 重複時以 |e| 為次鍵
+        → 等頻箱邊界把同 q 樣本「按殘差大小」切開,製造假斜率,p̂ 一度為 <strong>−0.18(負值!)</strong>。
+      </p>
+      <p class="small" style="margin-top:10px"><strong>修復</strong>:<span class="mono">stable_sort</span> 僅比較 q。</p>
+      <p class="small muted" style="margin-top:10px">教訓:排序比較器要最小化——多比一個欄位就是多一個隱性偏差源。</p>
+    </div>
+    <div class="col card">
+      <p style="font-size:19px"><strong>③ 蒙地卡羅斷言的跨平台餘裕</strong></p>
+      <p class="small" style="margin-top:8px">
+        <span class="mono">std::normal_distribution</span> 在 libc++(macOS)與 libstdc++(Linux)
+        產生不同序列——固定 seed 只保單平台確定性;貼線容差(0.25×SE)換平台近半機率翻紅。
+      </p>
+      <p class="small" style="margin-top:10px"><strong>修復</strong>:以理論二階項 + 1000 種子代理實驗校準
+        (UT-F2 容差 0.008、UT-Q2 下界 0.28),證據寫進註解。</p>
+      <p class="small muted" style="margin-top:10px">教訓:MC 斷言容差 = 系統項中心 + ≥3×SE,並以獨立重抽樣視角設定。</p>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>過程洞察</span></div>
+</section>
+
+<!-- ═══ 11 結論與建議 ════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">結論與建議</div>
+  <h2>決策路徑:依實測噪聲選 fitter;quality 到位後三步標定</h2>
+  <div class="flow" style="margin-top:10px">
+    <div class="fbox" style="flex:0.85"><b>量測 / 估計<br>disparity 噪聲 σ</b><span class="small">殘差 RMS 或 qsigma 之 σ̂₀</span></div>
+    <div class="farrow">→</div>
+    <div class="fbox" style="border-color:var(--s-fwd)">
+      <b style="color:var(--s-fwd)">σ ≤ 0.5(§3a 預算內)</b>
+      <span class="small">維持預設 <strong>ols_forward</strong>——偏差 &lt; 0.04%,低於任一容差門檻
+      (metal-shield 20% / 2×1 OCL 15% / dual-PD 10%)兩個數量級以上,<strong>不必切換</strong>。</span>
+    </div>
+    <div class="farrow">/</div>
+    <div class="fbox" style="border-color:var(--s-wls)">
+      <b style="color:var(--s-wls)">σ ≥ 1(低品質 SAD / 稀疏取樣)</b>
+      <span class="small">啟用 <strong>wls_inverse,γ = 1</strong>——不必精確標定即有 ~9% CV 改善、RMSE 全域最優。
+      <strong>勿用純 ols_inverse</strong>(RMSE 最差)。</span>
+    </div>
+  </div>
+  <div style="margin-top:26px">
+    <p style="font-weight:720; margin-bottom:10px">真實 SAD quality 到位後的標定步驟(離線,一次性):</p>
+    <div class="flow">
+      <div class="fbox"><b>1. calibrate()</b><span class="small">實際序列殘差(含槓桿修正)→ p̂、σ̂₀、r²;
+        r² 對照基準 0.979,過低表示 quality 與 σ 無穩定冪律關係</span></div>
+      <div class="farrow">→</div>
+      <div class="fbox"><b>2. γ̂ = 2p̂</b><span class="small">系統性偏低(~0.8)無妨——γ 誤標不敏感已由掃描證實,γ=1 亦可</span></div>
+      <div class="farrow">→</div>
+      <div class="fbox"><b>3. 寫回 config</b><span class="small mono">regression.fitter = "wls_inverse"、weight_gamma = γ̂</span></div>
+    </div>
+  </div>
+  <div class="card small" style="margin-top:24px">
+    <strong>本次不換預設的依據</strong>:換 fitter 的收益(消偏)只在 σ ≥ 1 顯現且應以 WLS 形式取得;
+    在預算內噪聲下任何切換都是無收益的行為變更。預設 ols_forward 保持 v1 位元級不變。
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>結論與建議</span></div>
+</section>
+
+<!-- ═══ 12 交付與重現 ════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">交付與重現</div>
+  <h2>工程交付:可組態 fitter + qsigma,預設行為零變更</h2>
+  <div class="cols" style="flex:0 0 auto">
+    <div class="col card tile"><div class="v">92<span style="font-size:24px;color:var(--muted)">/92</span></div><div class="k">測試全綠(80 + 12 新增,閉環寫入 SPEC-005 §3)</div></div>
+    <div class="col card tile"><div class="v">15</div><div class="k">commits,每 task 獨立審查 + 全分支最終審</div></div>
+    <div class="col card tile"><div class="v">bit-exact</div><div class="k">預設 ols_forward 路徑位元級不變(既有 80 案例零改動)</div></div>
+    <div class="col card tile"><div class="v">4</div><div class="k">fitter 可由 config / GUI 切換(CLI/GUI 能力等價)</div></div>
+  </div>
+  <div class="cols" style="margin-top:22px">
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:8px">新增介面</p>
+      <ul class="small" style="font-size:17.5px">
+        <li><span class="mono">dcc_core/regression</span>:Fitter enum + FitOptions(權重、δ)</li>
+        <li><span class="mono">dcc_core/qsigma</span>:calibrate() 冪律標定</li>
+        <li>config:<span class="mono">regression.fitter / weight_gamma</span>(非法值 E-A01)</li>
+        <li>report.json 記 fitter/γ(可追溯);GUI 下拉 + γ 滑桿</li>
+        <li>CLI:<span class="mono">--fitter-scan</span>(蒙地卡羅 CSV + qsigma 附表)</li>
+      </ul>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:8px">重現</p>
+      <div class="card" style="font-size:16.5px; line-height:1.8">
+        <span class="mono">./build/src/dcc_cli/dcc_cal --dry-run --fitter-scan &gt; fitter_scan.csv</span><br>
+        <span class="mono">./build/tests/dcc_tests "[fitter]" "[qsigma]"</span>
+      </div>
+      <p class="small" style="margin-top:10px">
+        完整分析:docs/fitter實驗_反向WLS與EIV.md ·
+        設計:docs/superpowers/specs/2026-07-17-fitter-wls-eiv-design.md ·
+        規格:SPEC-003 §5 / SPEC-004 §2·§3a.1 / SPEC-005 §3·§8
+      </p>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究 · 2026-07-18</span><span>完</span></div>
+</section>
+
+</div></div>
+<div id="pageno">1 / 12</div>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const stage = document.getElementById("stage");
+  const pageno = document.getElementById("pageno");
+  let cur = 0;
+
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, j) => s.classList.toggle("active", j === cur));
+    pageno.textContent = (cur + 1) + " / " + slides.length;
+    if (location.hash !== "#" + (cur + 1)) history.replaceState(null, "", "#" + (cur + 1));
+  }
+  function fit() {
+    const s = Math.min(window.innerWidth / 1320, window.innerHeight / 760);
+    stage.style.transform = "scale(" + s + ")";
+  }
+  window.addEventListener("resize", fit);
+  window.addEventListener("keydown", (e) => {
+    if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+  });
+  stage.addEventListener("click", (e) => {
+    if (e.clientX > window.innerWidth / 2) show(cur + 1); else show(cur - 1);
+  });
+  const h = parseInt(location.hash.slice(1), 10);
+  fit();
+  show(isNaN(h) ? 0 : h - 1);
+})();
+</script>
+</body>
+</html>
