@@ -142,7 +142,7 @@
     2026-07-18 · 資料:<span class="mono">dcc_cal --dry-run --fitter-scan</span>(50 seeds,focus_linked 誠實 quality)<br>
     對應文件:docs/fitter實驗_反向WLS與EIV.md · SPEC-003 §5 · SPEC-004 §3a.1 · SPEC-005 §8 #2
   </div>
-  <div class="foot"><span>← → 方向鍵翻頁</span><span>共 12 頁</span></div>
+  <div class="foot"><span>← → 方向鍵翻頁</span><span>共 16 頁(13–16 = 上線演示)</span></div>
 </section>
 
 <!-- ═══ 2 理論思路:EIV ══════════════════════════════════════════════ -->
@@ -627,7 +627,8 @@
         <li><span class="mono">dcc_core/qsigma</span>:calibrate() 冪律標定</li>
         <li>config:<span class="mono">regression.fitter / weight_gamma</span>(非法值 E-A01)</li>
         <li>report.json 記 fitter/γ(可追溯);GUI 下拉 + γ 滑桿</li>
-        <li>CLI:<span class="mono">--fitter-scan</span>(蒙地卡羅 CSV + qsigma 附表)</li>
+        <li>CLI:<span class="mono">--fitter-scan</span>(蒙地卡羅 CSV + qsigma 附表)、
+            <span class="mono">--qsigma</span>(實際序列標定,見演示章)</li>
       </ul>
     </div>
     <div class="col">
@@ -643,11 +644,166 @@
       </p>
     </div>
   </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究 · 2026-07-18</span><span>交付</span></div>
+</section>
+
+<!-- ═══ 13 演示:資料與流程 ══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">上線演示 1/4</div>
+  <h2>跟著做:示範 SAD 資料 + 三個命令,對照每步輸出</h2>
+  <div class="cols">
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:8px">示範資料(隨 repo 提供,數字全部確定性)</p>
+      <table class="tbl">
+        <tr><th style="width:200px">項目</th><th>值</th></tr>
+        <tr><td>序列檔</td><td class="mono">data/examples/demo_fitter_wls_seq.json</td></tr>
+        <tr><td>WLS config</td><td class="mono">data/examples/demo_wls_config.json</td></tr>
+        <tr><td>噪聲</td><td>σ₀ = 1.0 raw px(WLS 建議啟用門檻)、seed = 7</td></tr>
+        <tr><td>quality 面</td><td>focus_linked 誠實模型(σ<sub>eff</sub> = σ₀/√q、q_falloff 0.3)</td></tr>
+        <tr><td>已知真值</td><td>中央 4 區平均 DCC = <strong>12.5665</strong>(合成資料,可對答案)</td></tr>
+      </table>
+      <div class="card small" style="margin-top:12px">
+        模擬情境:外部 SAD 團隊交來一份「噪聲偏大、附 quality 面」的序列——
+        正是結論頁「σ ≥ 1 → 啟用 WLS」的情境。
+      </div>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:8px">三步驟(在 repo 根目錄,build 完成後)</p>
+      <div class="flow" style="flex-direction:column; gap:12px">
+        <div class="fbox"><b>Step 1 — 先跑預設(前向),留基準</b>
+          <span class="small mono">dcc_cal --seq …demo_seq.json --out out_fwd</span></div>
+        <div class="fbox"><b>Step 2 — q→σ 標定,決定 γ</b>
+          <span class="small mono">dcc_cal --seq …demo_seq.json --qsigma</span></div>
+        <div class="fbox"><b>Step 3 — 換 WLS config 重跑,前後對照</b>
+          <span class="small mono">dcc_cal --seq …demo_seq.json --config …demo_wls_config.json --out out_wls</span></div>
+      </div>
+      <p class="small" style="margin-top:12px">
+        每一步的<strong>預期輸出寫在接下來三頁</strong>——資料與 seed 固定,
+        你跑出來的數字應與投影片逐字相同;不同就是哪裡做錯了。
+      </p>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>上線演示</span></div>
+</section>
+
+<!-- ═══ 14 演示 Step 1 ═══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">上線演示 2/4</div>
+  <h2>Step 1:預設(前向 OLS)跑一次,留下比較基準</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.15">
+      <div class="card" style="font-size:16.5px; line-height:1.8">
+        <span class="mono">$ ./build/src/dcc_cli/dcc_cal \</span><br>
+        <span class="mono">&nbsp;&nbsp;--seq data/examples/demo_fitter_wls_seq.json --out out_fwd</span><br>
+        <span class="mono muted">模組判定:PASS</span><br>
+        <span class="mono muted">輸出:out_fwd/report.json、report.md、block.bin、block.json、block.txt</span>
+      </div>
+      <p style="font-weight:720; margin:14px 0 8px">✅ 檢查點(打開 out_fwd/report.json)</p>
+      <table class="tbl">
+        <tr><th>欄位</th><th>預期值</th></tr>
+        <tr><td class="mono">result.fitter</td><td class="mono">"ols_forward"</td></tr>
+        <tr><td class="mono">result.weight_gamma</td><td class="mono">1.0</td></tr>
+        <tr><td>中央 4 區平均 DCC<span class="small muted">(dcc_raw_px[19,20,27,28])</span></td>
+            <td><strong>12.6550</strong>(真值 12.5665,誤差 +0.70%)</td></tr>
+        <tr><td class="mono">result.pass</td><td class="mono">true</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <ul>
+        <li>不帶 <span class="mono">--config</span> 就是內建預設 config——fitter = <strong>ols_forward</strong>(v1 行為)。</li>
+        <li>report.json 會記下 fitter/γ,<strong>任何一份報告都能事後查它用了哪個 fitter</strong>。</li>
+        <li>此時的中央 DCC 與 err map 就是「換 WLS 前」的基準,留著 Step 3 對照。</li>
+      </ul>
+      <div class="card small" style="margin-top:10px">
+        <strong>常見錯誤</strong>:報告裡 <span class="mono">result.fitter</span> 不是
+        <span class="mono">ols_forward</span> → 你的 config 檔已改過 regression 段,基準被污染,
+        請先用預設跑。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>上線演示</span></div>
+</section>
+
+<!-- ═══ 15 演示 Step 2 ═══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">上線演示 3/4</div>
+  <h2>Step 2:<span class="mono">--qsigma</span> 標定——由序列自己回答「γ 該是多少」</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.15">
+      <div class="card" style="font-size:16px; line-height:1.75">
+        <span class="mono">$ ./build/src/dcc_cli/dcc_cal \</span><br>
+        <span class="mono">&nbsp;&nbsp;--seq data/examples/demo_fitter_wls_seq.json --qsigma</span><br>
+        <span class="mono muted">q→σ 標定(σ(q) = σ₀·q^−p;樣本 480,殘差取反向擬合 + 槓桿修正):</span><br>
+        <span class="mono muted">&nbsp;&nbsp;p̂ = 0.3455   σ̂₀ = 1.1038 raw px   r² = 0.7545   bins = 8</span><br>
+        <span class="mono muted">&nbsp;&nbsp;建議 γ = 2·p̂ = 0.69(WLS 對 γ 誤標不敏感,取 1 亦可)</span><br>
+        <span class="mono muted">&nbsp;&nbsp;config 片段:"regression": { "fitter": "wls_inverse", "weight_gamma": 0.69 }</span>
+      </div>
+      <p style="font-weight:720; margin:14px 0 8px">✅ 檢查點</p>
+      <ul class="small" style="font-size:17.5px">
+        <li>σ̂₀ ≈ <strong>1.10</strong>(真值 1.0,+10% 內)→ 確認「這份序列噪聲 σ ≥ 1」,符合啟用 WLS 的門檻。</li>
+        <li>p̂ &gt; 0 且 r² 明顯 &gt; 0 → quality 與噪聲有穩定冪律關係,權重有意義。</li>
+      </ul>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:8px">判讀規則(給第一次跑的人)</p>
+      <table class="tbl">
+        <tr><th>看到</th><th>怎麼辦</th></tr>
+        <tr><td>r² ≳ 0.7、p̂ ∈ (0.2, 0.8)</td><td>正常(單一序列僅 ~480 樣本,r² 本來就低於多序列匯總的 0.98)→ 用建議 γ 或 γ=1</td></tr>
+        <tr><td>p̂ ≤ 0 或 r² &lt; 0.5</td><td>quality 與 σ 無穩定關係 → <strong>不要上 WLS 權重</strong>,維持預設</td></tr>
+        <tr><td>「序列無 quality 面」</td><td>外部序列沒帶 quality → WLS 無權重可用(強行啟用會退化等權並記警告)</td></tr>
+      </table>
+      <div class="card small" style="margin-top:10px">
+        p̂ = 0.35 低於理論 0.5 是<strong>已知的一階近似殘留低估</strong>(投影片 p.9),
+        γ̂ = 0.69 仍在掃描證實的不敏感區——照抄輸出的 config 片段即可。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>DCC 回歸 fitter 精度研究</span><span>上線演示</span></div>
+</section>
+
+<!-- ═══ 16 演示 Step 3 ═══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">上線演示 4/4</div>
+  <h2>Step 3:換 WLS config 重跑,前後對照收工</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.15">
+      <div class="card" style="font-size:16.5px; line-height:1.8">
+        <span class="mono">$ ./build/src/dcc_cli/dcc_cal \</span><br>
+        <span class="mono">&nbsp;&nbsp;--seq data/examples/demo_fitter_wls_seq.json \</span><br>
+        <span class="mono">&nbsp;&nbsp;--config data/examples/demo_wls_config.json --out out_wls</span><br>
+        <span class="mono muted">模組判定:PASS</span>
+      </div>
+      <p style="font-weight:720; margin:14px 0 8px">✅ 檢查點:前後對照(真值 12.5665)</p>
+      <table class="tbl">
+        <tr><th></th><th>Step 1 前向</th><th>Step 3 WLS(γ=1)</th></tr>
+        <tr><td class="mono">result.fitter</td><td class="mono">ols_forward</td><td class="mono"><strong>wls_inverse</strong></td></tr>
+        <tr><td>中央 4 區平均 DCC</td><td>12.6550(+0.70%)</td><td><strong>12.6414(+0.60%)</strong></td></tr>
+        <tr><td>48 區 RMSE vs 真值</td><td>4.76%</td><td><strong>4.55%</strong></td></tr>
+      </table>
+      <p class="small" style="margin-top:8px">
+        示範 config 用 γ=1(演示「不必精確標定」);要用 Step 2 的 γ̂=0.69,
+        改 <span class="mono">weight_gamma</span> 即可,結果差異可忽略。
+      </p>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:8px">常見錯誤與長相</p>
+      <table class="tbl">
+        <tr><th>症狀</th><th>原因</th></tr>
+        <tr><td>warnings 出現「WLS:序列無 quality,退化為等權」</td><td>序列沒帶 quality 面——結果 ≡ 純反向,通常不是你要的</td></tr>
+        <tr><td>啟動即中止 E-A01「weight_gamma 須在 0..8」</td><td>γ 打錯範圍;fitter 字串拼錯也是 E-A01</td></tr>
+        <tr><td>改善幅度跟本頁不同</td><td>用了自己的序列——單一序列的改善量本來就隨資料浮動(~9% 是 CV 的多序列期望值),方向對即可</td></tr>
+      </table>
+      <div class="card small" style="margin-top:10px">
+        <strong>收工判準</strong>:report.json 記到 <span class="mono">wls_inverse</span>、
+        無退化警告、判定 PASS——WLS 已正確生效。之後所有模組沿用同一份 config 即可。
+      </div>
+    </div>
+  </div>
   <div class="foot"><span>DCC 回歸 fitter 精度研究 · 2026-07-18</span><span>完</span></div>
 </section>
 
 </div></div>
-<div id="pageno">1 / 12</div>
+<div id="pageno">1 / 16</div>
 
 <script>
 (function () {

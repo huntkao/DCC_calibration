@@ -2,6 +2,7 @@
 // 用法:
 //   dcc_cal --dry-run [--out DIR] [--sigma S] [--bias B] [--seed N] [--focus-center D]
 //   dcc_cal --seq disp_seq.json [--config config.json] [--out DIR]
+//   dcc_cal --seq disp_seq.json --qsigma        # q→σ 標定(序列需含 quality 面)
 // 結束碼:0 = PASS、1 = 判定 FAIL、2 = 中止(E-xx)、3 = 參數錯誤。
 #include <cmath>
 #include <cstdio>
@@ -223,6 +224,53 @@ int main(int argc, char** argv) {
       size_t got;
       while ((got = std::fread(buf, 1, sizeof(buf), f)) > 0) seq_json.append(buf, got);
       std::fclose(f);
+    }
+
+    // q→σ 標定模式(SPEC-004 §3a.1;實際序列之離線標定,輸出建議 γ)。
+    // 程序同設計文件 §4:反向擬合取殘差 → 槓桿(studentized)修正 → calibrate()。
+    if (has_flag(argc, argv, "--qsigma")) {
+      auto c2 = cfg;
+      c2.fitter = dcc::regression::Fitter::ols_inverse;
+      const std::vector<double> flat_g(221, 1.0);
+      const auto res = dcc::app::run(c2, seq_json, flat_g, flat_g);
+      if (res.seq.quality.empty()) {
+        std::fprintf(stderr, "序列無 quality 面,無法做 q→σ 標定\n");
+        return 3;
+      }
+      // 槓桿修正因子:h_ff = 1/n + (dac−d̄)²/Σ(dac−d̄)²(僅依 dacs;同 UT-Q2)。
+      const size_t nf = res.seq.disp.size();
+      double dmean = 0.0;
+      for (int d : res.dacs) dmean += static_cast<double>(d);
+      dmean /= static_cast<double>(nf);
+      double dss = 0.0;
+      for (int d : res.dacs) dss += (static_cast<double>(d) - dmean) * (static_cast<double>(d) - dmean);
+      std::vector<double> lev(nf);
+      for (size_t fr = 0; fr < nf; ++fr) {
+        const double h = 1.0 / static_cast<double>(nf) +
+                         (static_cast<double>(res.dacs[fr]) - dmean) *
+                             (static_cast<double>(res.dacs[fr]) - dmean) / dss;
+        lev[fr] = 1.0 / std::sqrt(1.0 - h);
+      }
+      std::vector<double> cal_q, cal_ar;
+      for (size_t ri = 0; ri < res.regions.size(); ++ri)
+        for (size_t fr = 0; fr < nf; ++fr) {
+          const double x = res.seq.disp[fr][ri];
+          const double qv = res.seq.quality[fr][ri];
+          if (std::isnan(x) || std::isnan(qv)) continue;
+          const double e = x - (static_cast<double>(res.dacs[fr]) - res.regions[ri].intercept) /
+                                   res.regions[ri].dcc_raw_px;
+          cal_q.push_back(qv);
+          cal_ar.push_back(std::fabs(e) * lev[fr]);
+        }
+      const auto cal = dcc::qsigma::calibrate(cal_q, cal_ar);
+      std::printf("q→σ 標定(σ(q) = σ₀·q^−p;樣本 %zu,殘差取反向擬合 + 槓桿修正):\n",
+                  cal_q.size());
+      std::printf("  p̂ = %.4f   σ̂₀ = %.4f raw px   r² = %.4f   bins = %d\n", cal.p, cal.sigma0,
+                  cal.r2, cal.bins_used);
+      std::printf("  建議 γ = 2·p̂ = %.2f(WLS 對 γ 誤標不敏感,取 1 亦可)\n", 2.0 * cal.p);
+      std::printf("  config 片段:\"regression\": { \"fitter\": \"wls_inverse\", \"weight_gamma\": %.2f }\n",
+                  2.0 * cal.p);
+      return 0;
     }
 
     const char* out_dir = arg_value(argc, argv, "--out");

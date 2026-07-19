@@ -1,0 +1,20 @@
+{
+  "_comment": "示範用 config:與內建預設完全相同,僅 regression 段改用 wls_inverse(γ=1)。搭配 demo_fitter_wls_seq.json 與 docs/fitter實驗_投影片.html 演示章節使用。",
+  "sensor": {
+    "name": "example_metal_shield", "width": 4608, "height": 3456,
+    "bit_depth": 10, "black_level": 64,
+    "pattern_period_x": 32, "pattern_period_y": 32,
+    "pd_left_offsets":  [[4,3],[20,3],[4,11],[20,11],[4,19],[20,19],[4,27],[20,27]],
+    "pd_right_offsets": [[8,3],[24,3],[8,11],[24,11],[8,19],[24,19],[8,27],[24,27]],
+    "orientation": "canonical (flip/mirror off)"
+  },
+  "vcm": { "dac_bits": 10, "dac_min": 0, "dac_max": 1023,
+           "af_cal_inf": 220, "af_cal_macro": 620, "settle_time_ms": 30 },
+  "dcc": { "far_margin": 0.1, "near_margin": 0.1, "num_positions": 10,
+           "grid_w": 8, "grid_h": 6, "q_format": 6, "tolerance": 0.2,
+           "min_valid_samples": 8, "smooth_limit": 0.25, "r2_warn": 0.98,
+           "input_disparity_unit": "raw_pixel", "output_disparity_unit": "raw_pixel" },
+  "regression": { "fitter": "wls_inverse", "weight_gamma": 1.0 },
+  "focus": { "poly_order": 4, "peak_margin_steps": 1 },
+  "aggregation": { "method": "median", "min_valid_ratio": 0.5 }
+}

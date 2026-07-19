@@ -113,9 +113,12 @@ ols_inverse 反而讓整體精度變差。
   (≈0.8 而非理論 1.0),仍可放心使用預設 γ=1 或標定值,不影響 WLS 消
   變異的效益。
 
-**真實 SAD quality 到位後的標定步驟:**
-1. 用實際序列跑 `qsigma`(calibrate())取得 p̂、σ̂₀、r²、bins,檢查 r² 是否
-   足夠(本次合成資料 r²=0.9789 為參考基準)。
+**真實 SAD quality 到位後的標定步驟**(2026-07-18 起有現成命令與示範資料:
+`dcc_cal --seq <序列> --qsigma`;示範 `data/examples/demo_fitter_wls_seq.json` +
+step-by-step 見 `docs/fitter實驗_投影片.html` p.13–16):
+1. 用實際序列跑 `dcc_cal --qsigma` 取得 p̂、σ̂₀、r²、bins,檢查 r² 是否
+   足夠(多序列匯總參考基準 r²=0.9789;單一序列 ~480 樣本時 r²≈0.7–0.8 屬正常,
+   r²<0.5 或 p̂≤0 表示 quality 與 σ 無穩定冪律關係,不應上 WLS 權重)。
 2. 依 γ̂ = 2p̂ 換算權重指數(本次合成資料下 γ̂≈0.8,仍在敏感度分析證實
    的安全範圍內)。
 3. 將標定結果(σ、γ)寫回 config 的 `regression.fitter=wls_inverse` 與對應
