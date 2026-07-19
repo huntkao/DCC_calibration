@@ -11,6 +11,7 @@
 > rev 2026-07-17:專案定位收斂為離線+實驗、不做硬體對接(SPEC-000 §6)。§6 出場準則三方簽核改為**校正/演算法兩方**(產線角色移除);§7 開放問題 #1/#2/#4 由「延期至 M2」改判為「不在 scope / 外部承擔」關閉,#3 轉為離線實驗任務(非 gate)。
 > rev 2026-07-17(2):§8 #2 EIV 備忘更新——ols_inverse/wls_inverse/deming 已實作並以蒙地卡羅驗證,結論見 docs/fitter實驗_反向WLS與EIV.md。
 > rev 2026-07-18:§3 補 fitter/qsigma/config/IT-fitter 測試對映(12 案例,合計 92)。
+> rev 2026-07-18(2):§7 開放問題 #3 換算工具落地(chart_dist + CLI --chart-tol),詳見 docs/chart距離公差分析.md;測試新增 3 案例,合計 95。
 
 ## 1. 測試層級
 
@@ -129,6 +130,10 @@
    已驗證:理想線性(nl=0)時 DCC 對合焦偏移完全不敏感;
    nl=0.05 時靈敏度 ≈ 2·nl·Δ/(span/2)(預設 span 480 → /240;+40 DAC → +1.7%,與理論一致)。
    **最終關閉待實模組量測真實非線性量級**(掃描方法與判讀已備妥)
+
+   ——**換算工具已落地(2026-07-18)**:core chart_dist(DAC↔物距兩點標定)+ CLI --chart-tol
+   (cm 公差↔DCC 誤差正/反算),詳見 docs/chart距離公差分析.md。真實 nl 與 VCM 標定為輸入,
+   依離線+實驗定位(不碰硬體)屬外部承擔;工具備妥即本專案關閉條件。
 4. EEPROM 實際 layout 與 v4 開發版差異(等 `PDAFCalibrationTools_EEPROM.h`)
    —— **不在 scope(2026-07-17 關閉)**:開發版 layout 已轉正(2026-07-16),
    本工具僅離線產出 `block.bin` + 可讀等價檔;不做實體燒錄,Qualcomm layout

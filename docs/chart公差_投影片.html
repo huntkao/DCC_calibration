@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>chart 距離公差 → DCC 靈敏度換算工具</title>
+<style>
+  /* ── 版面基礎(light 版面、系統字型、零外部資源)──────────────── */
+  :root {
+    --page:    #f9f9f7;  --surface: #fcfcfb;
+    --ink:     #0b0b0b;  --ink-2:   #52514e;  --muted: #898781;
+    --grid:    #e1e0d9;  --axis:    #c3c2b7;
+    --s-fwd:   #2a78d6;  /* nl=0 / 無傳導 */
+    --s-inv:   #eb6834;  /* nl≠0 / 有傳導 */
+    --s-wls:   #4a3aa7;  /* 第三序列(對照) */
+    --accent:  #2a78d6;
+    --good:    #006300;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "PingFang TC", "Heiti TC",
+                 "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    overflow: hidden;
+  }
+  #deck { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #stage { flex: none; width: 1280px; height: 720px; position: relative; transform-origin: center center; }
+  .slide {
+    position: absolute; inset: 0; padding: 56px 72px;
+    background: var(--surface); border: 1px solid rgba(11,11,11,0.10);
+    border-radius: 10px; display: none; flex-direction: column;
+  }
+  .slide.active { display: flex; }
+
+  .kicker {
+    font-size: 16px; font-weight: 700; letter-spacing: .12em;
+    color: var(--accent); margin-bottom: 6px;
+  }
+  h2 { font-size: 33px; font-weight: 750; line-height: 1.25; margin-bottom: 20px; }
+  .content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .cols { display: flex; gap: 36px; flex: 1; min-height: 0; }
+  .col { flex: 1; min-width: 0; }
+
+  p, li { font-size: 20.5px; line-height: 1.62; color: var(--ink); }
+  ul { padding-left: 1.3em; }
+  li { margin-bottom: .5em; }
+  li::marker { color: var(--accent); }
+  .small, .cap { font-size: 16px; color: var(--ink-2); line-height: 1.5; }
+  .muted { color: var(--muted); }
+  strong { font-weight: 720; }
+  em.term { font-style: normal; font-weight: 700; color: var(--accent); }
+
+  .math {
+    font-size: 21px; line-height: 1.7; background: #f4f3f0;
+    border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;
+    padding: 12px 18px; margin: 10px 0;
+  }
+  .math .frac { display: inline-block; text-align: center; vertical-align: middle; margin: 0 3px; }
+  .math .frac > span { display: block; padding: 0 6px; }
+  .math .frac > span:first-child { border-bottom: 1.5px solid var(--ink); }
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; }
+  code { background: #efeeea; border-radius: 4px; padding: 1px 6px; }
+
+  table.tbl { border-collapse: collapse; width: 100%; }
+  table.tbl th, table.tbl td {
+    font-size: 18.5px; padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--grid); line-height: 1.45;
+  }
+  table.tbl th { color: var(--ink-2); font-weight: 700; border-bottom: 2px solid var(--axis); }
+  table.tbl td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  table.tbl th.num { text-align: right; }
+
+  .chip { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 7px; vertical-align: -1px; }
+  .chip.fwd { background: var(--s-fwd); } .chip.inv { background: var(--s-inv); } .chip.wls { background: var(--s-wls); }
+
+  .card {
+    background: #f4f3f0; border: 1px solid var(--grid); border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .tile { text-align: center; padding: 18px 12px; }
+  .tile .v { font-size: 46px; font-weight: 780; line-height: 1.1; }
+  .tile .k { font-size: 16px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
+
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .fbox {
+    background: #f4f3f0; border: 1.5px solid var(--axis); border-radius: 10px;
+    padding: 12px 16px; font-size: 18px; line-height: 1.5; flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .fbox b { font-size: 19px; }
+  .farrow { align-self: center; padding: 0 10px; font-size: 26px; color: var(--muted); flex: 0 0 auto; }
+
+  .foot {
+    position: absolute; left: 72px; right: 72px; bottom: 20px;
+    display: flex; justify-content: space-between;
+    font-size: 13.5px; color: var(--muted);
+  }
+  #pageno { position: absolute; right: 24px; bottom: 18px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 15px; fill: var(--muted); }
+  .tick-label { font-size: 14.5px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .dlabel { font-size: 16px; font-weight: 700; }
+  .note { font-size: 14.5px; fill: var(--ink-2); }
+
+  /* 封面 */
+  .cover { justify-content: center; }
+  .cover .kicker { font-size: 18px; }
+  .cover h1 { font-size: 54px; font-weight: 800; line-height: 1.22; margin: 10px 0 16px; }
+  .cover .sub { font-size: 26px; color: var(--ink-2); margin-bottom: 34px; }
+  .cover .headline {
+    font-size: 23px; line-height: 1.6; background: #f4f3f0;
+    border-left: 5px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 22px; max-width: 980px;
+  }
+  .cover .meta { margin-top: 40px; font-size: 16px; color: var(--muted); line-height: 1.7; }
+
+  .warn {
+    background: #fbf1e6; border: 1px solid #e3c9a0; border-left: 5px solid var(--s-inv);
+    border-radius: 0 10px 10px 0; padding: 12px 18px; font-size: 17.5px; line-height: 1.6;
+  }
+
+  @media print {
+    body { overflow: visible; background: #fff; }
+    #deck { position: static; display: block; }
+    #stage { width: auto; height: auto; transform: none !important; }
+    .slide { position: relative; display: flex !important; page-break-after: always; width: 1280px; height: 720px; margin: 0 auto; border: none; }
+    #pageno { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="deck"><div id="stage">
+
+<!-- ═══ 1 封面 + 結論 ═══════════════════════════════════════════════ -->
+<section class="slide cover active">
+  <div class="kicker">DCC_CALIBRATION · M2 離線實驗 · 開放問題 #3 關閉</div>
+  <h1>chart 距離公差 → DCC 靈敏度換算工具</h1>
+  <div class="sub">兩點標定 VCM 模型 + 正/反算 CLI(<span class="mono">--chart-tol</span>)</div>
+  <div class="headline">
+    <strong>結論:</strong>換算工具(正算 cm→ΔDCC%、反算 ΔDCC%→±cm)已落地——
+    <strong>nl 是傳導係數</strong>:disparity 曲線非線性把「chart 距離誤差」轉譯成「DCC 誤差」,
+    nl=0 時理想線性完全不敏感。真實 nl 量測值與 VCM 兩點標定<strong>為外部輸入</strong>,
+    依「離線+實驗、不碰硬體」定位屬外部承擔——<strong>工具備妥即本專案之關閉條件</strong>。
+  </div>
+  <div class="meta">
+    2026-07-18 · 資料:<span class="mono">dcc_cal --dry-run --chart-tol --nl 0.05|0.10 --dcc-budget 1.0</span><br>
+    對應文件:docs/chart距離公差分析.md · 設計:docs/superpowers/specs/2026-07-18-chart-distance-tolerance-design.md ·
+    SPEC-005 §7 開放問題 #3
+  </div>
+  <div class="foot"><span>← → 方向鍵翻頁</span><span>共 8 頁</span></div>
+</section>
+
+<!-- ═══ 2 兩個獨立誤差源 ════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">問題拆解</div>
+  <h2>兩個獨立誤差源,經 nl 這個傳導係數耦合</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.1">
+      <svg viewBox="0 0 560 400" width="100%" aria-label="nl=0 平線 vs nl≠0 斜線:合焦偏移對 DCC 誤差的影響">
+        <line x1="60" y1="200" x2="530" y2="200" stroke="var(--axis)" stroke-width="1.5"/>
+        <line x1="295" y1="360" x2="295" y2="20" stroke="var(--axis)" stroke-width="1.5"/>
+        <text x="295" y="392" text-anchor="middle" class="axis-label">合焦偏移(DAC,由 chart 距離誤差轉來)</text>
+        <text x="24" y="190" text-anchor="middle" class="axis-label" transform="rotate(-90 24 190)">DCC 誤差 ΔDCC%</text>
+        <!-- nl=0 平線 -->
+        <line x1="66" y1="200" x2="500" y2="200" stroke="var(--s-fwd)" stroke-width="3"/>
+        <!-- nl≠0 斜線 -->
+        <line x1="66" y1="330" x2="500" y2="70" stroke="var(--s-inv)" stroke-width="3"/>
+        <g fill="var(--surface)" stroke="var(--s-inv)" stroke-width="2">
+          <circle cx="130" cy="290" r="5"/><circle cx="230" cy="240" r="5"/>
+          <circle cx="360" cy="175" r="5"/><circle cx="460" cy="120" r="5"/>
+        </g>
+        <text x="554" y="66" text-anchor="end" class="dlabel" fill="var(--s-inv)">nl ≠ 0:斜率隨 nl 增大</text>
+        <text x="504" y="196" text-anchor="end" class="dlabel" fill="var(--s-fwd)">nl = 0:恆為 0(平線)</text>
+      </svg>
+    </div>
+    <div class="col">
+      <table class="tbl" style="margin-bottom:14px">
+        <tr><th>環節</th><th>物理成因</th><th>既有框架</th></tr>
+        <tr><td>① 曲線非線性</td><td>球差 / PD 響應飽和(nl)</td><td class="mono">--scan</td></tr>
+        <tr><td>② chart 距離誤差</td><td>治具擺放幾何誤差(cm)</td><td class="mono">chart_dist(本次)</td></tr>
+      </table>
+      <ul>
+        <li>①「合焦偏移(DAC)→ DCC 誤差」已由 <span class="mono">--scan</span> + synth <span class="mono">nl</span> 驗證。</li>
+        <li>②「chart 物理距離(cm)→ 合焦偏移(DAC)」原本是文字工序,程式零實作 —— 本案補上。</li>
+        <li><strong>因果關鍵</strong>:chart 距離公差本身不是 nl 的成因,二者是<em class="term">平行的獨立誤差源</em>,
+          只有透過 nl 這個傳導係數耦合才會顯現為 DCC 誤差。</li>
+      </ul>
+      <div class="card small" style="margin-top:10px">
+        因此換算鏈路必須雙向串接 ①+②:<span class="mono">cm 偏移 → DAC 偏移 → ΔDCC%</span>,
+        才能回答「chart 治具要準到多少 cm」。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具</span><span>問題拆解</span></div>
+</section>
+
+<!-- ═══ 3 VCM DAC↔物距模型 ══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">核心模型</div>
+  <h2>VCM 薄透鏡近似:DAC 與 1/物距 呈線性,兩點標定求解</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="math">DAC = a + b / dist_cm</div>
+      <p style="margin-top:6px">兩點標定(鏡頭專屬 INF / MACRO 對照點):</p>
+      <div class="math" style="font-size:19px">
+        b = (dac₁ − dac₂) / (1/dist₁ − 1/dist₂) &nbsp;&nbsp; a = dac₁ − b / dist₁
+      </div>
+      <table class="tbl" style="margin-top:10px">
+        <tr><th>對照點</th><th class="num">DAC</th><th class="num">物距 cm</th></tr>
+        <tr><td>INF(示範)</td><td class="num">220</td><td class="num">200</td></tr>
+        <tr><td>MACRO(示範)</td><td class="num">620</td><td class="num">10</td></tr>
+      </table>
+      <div class="warn" style="margin-top:14px">
+        ⚠ 上表為<strong>示範標定值</strong>(典型模組合理範圍),非真實鏡頭光學特性。
+        每次 CLI 輸出皆印「示範標定值,實機須替換 --vcm-cal」——不讓使用者誤把示範數字當真值。
+      </div>
+    </div>
+    <div class="col">
+      <svg viewBox="0 0 520 380" width="100%" aria-label="DAC vs 1/物距 兩點標定直線">
+        <line x1="60" y1="340" x2="480" y2="340" stroke="var(--axis)" stroke-width="1.5"/>
+        <line x1="60" y1="340" x2="60"  y2="20"  stroke="var(--axis)" stroke-width="1.5"/>
+        <text x="270" y="368" text-anchor="middle" class="axis-label">1 / dist_cm</text>
+        <text x="24" y="180" text-anchor="middle" class="axis-label" transform="rotate(-90 24 180)">DAC</text>
+        <!-- 標定直線,經 (75,318) [1/200] 與 (450,45) [1/10] -->
+        <line x1="66" y1="322" x2="474" y2="42" stroke="var(--s-wls)" stroke-width="2.5"/>
+        <g fill="var(--surface)" stroke="var(--s-wls)" stroke-width="2.5">
+          <circle cx="75" cy="318" r="6"/>
+          <circle cx="450" cy="45" r="6"/>
+        </g>
+        <text x="90" y="312" class="dlabel" fill="var(--s-wls)">INF(220, 1/200)</text>
+        <text x="345" y="38" class="dlabel" fill="var(--s-wls)">MACRO(620, 1/10)</text>
+        <text x="70" y="30" class="note">斜率 = b、截距 = a(兩點唯一決定)</text>
+      </svg>
+      <div class="card small" style="margin-top:12px">
+        新增純函式模組 <span class="mono">dcc_core/chart_dist</span>(無 I/O/UI,依賴 error.hpp):
+        <span class="mono">calibrate_two_point()</span>、<span class="mono">dac_to_dist()</span>、
+        <span class="mono">dist_to_dac()</span>。退化輸入(兩點 DAC 相同 / 物距 ≤ 0)→ E_A01。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具</span><span>核心模型</span></div>
+</section>
+
+<!-- ═══ 4 串接鏈路圖 ════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">換算鏈路</div>
+  <h2>四段串接:從 chart 擺放誤差(cm)到中央 DCC 誤差(%)</h2>
+  <div class="flow" style="margin-top:20px">
+    <div class="fbox" style="border-color:var(--s-wls)">
+      <b>cm 偏移</b>
+      <span class="small">治具擺放誤差 ±Δcm(相對標稱 chart 距離)</span>
+    </div>
+    <div class="farrow">→</div>
+    <div class="fbox" style="border-color:var(--s-wls)">
+      <b>chart_dist</b>
+      <span class="small mono">dist_to_dac(model, dist_cm)</span>
+      <span class="small">兩點標定的 VCM DAC↔物距模型</span>
+    </div>
+    <div class="farrow">→</div>
+    <div class="fbox" style="border-color:var(--s-inv)">
+      <b>DAC 偏移</b>
+      <span class="small">合焦偏移量,餵入既有 synth nl 模型 + 校正管線</span>
+    </div>
+    <div class="farrow">→</div>
+    <div class="fbox" style="border-color:var(--s-inv)">
+      <b>ΔDCC%</b>
+      <span class="small">中央 4 區(2,3)(2,4)(3,3)(3,4)平均 DCC 相對基準之百分比誤差</span>
+    </div>
+  </div>
+  <div class="cols" style="flex:0 0 auto; margin-top:30px">
+    <div class="col card small">
+      <strong>正算</strong>:給定 cm 偏移範圍 → 掃描表(<span class="mono">dist_cm, delta_cm, offset_dac, central_dcc, delta_dcc_pct</span>)。
+    </div>
+    <div class="col card small">
+      <strong>反算</strong>:給定可接受 ΔDCC% 預算 → 對「單邊 cm 偏移」二分搜尋(靈敏度單調)→
+      直接得「chart 擺放需準到 ±X cm」。
+    </div>
+  </div>
+  <div class="card small" style="margin-top:18px">
+    全程<strong>沿用既有元件</strong>,不重寫:中央 4 區 DCC 演算法與 synth <span class="mono">nl</span> 模型與 <span class="mono">--scan</span> 共用;
+    <span class="mono">chart_dist</span> 只新增「cm ↔ DAC」這一段轉換。
+  </div>
+  <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具</span><span>換算鏈路</span></div>
+</section>
+
+<!-- ═══ 5 正算表 ════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">實測結果 1/2</div>
+  <h2>正算表(nl=0.05,示範標定 220:200cm / 620:10cm,標稱 19.05 cm)</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.2">
+      <table class="tbl" style="font-size:15.5px">
+        <tr><th class="num">delta_cm</th><th class="num">offset_dac</th><th class="num">central_dcc</th><th class="num">delta_dcc_pct</th></tr>
+        <tr><td class="num">-3.000</td><td class="num">41.324</td><td class="num">13.028383</td><td class="num">1.7492</td></tr>
+        <tr><td class="num">-2.000</td><td class="num">25.934</td><td class="num">12.944058</td><td class="num">1.0906</td></tr>
+        <tr><td class="num">-1.000</td><td class="num">12.248</td><td class="num">12.869989</td><td class="num">0.5121</td></tr>
+        <tr><td class="num">-0.500</td><td class="num">5.959</td><td class="num">12.836232</td><td class="num">0.2485</td></tr>
+        <tr><td class="num"><strong>0.000</strong></td><td class="num">0.000</td><td class="num">12.804411</td><td class="num">0.0000</td></tr>
+        <tr><td class="num">0.500</td><td class="num">-5.654</td><td class="num">12.774363</td><td class="num">-0.2347</td></tr>
+        <tr><td class="num">1.000</td><td class="num">-11.026</td><td class="num">12.745945</td><td class="num">-0.4566</td></tr>
+        <tr><td class="num">2.000</td><td class="num">-21.005</td><td class="num">12.693492</td><td class="num">-0.8663</td></tr>
+        <tr><td class="num">3.000</td><td class="num">-30.078</td><td class="num">12.646170</td><td class="num">-1.2358</td></tr>
+      </table>
+      <p class="small" style="margin-top:8px">節選 9 列(全 25 列表照抄見 docs/chart距離公差分析.md §3.1),數字為
+        <span class="mono">dcc_cal --dry-run --chart-tol --nl 0.05 --dcc-budget 1.0</span> 實測輸出,未手改。</p>
+    </div>
+    <div class="col">
+      <ul>
+        <li>delta_cm 越大(chart 擺得越遠離標稱位置),|delta_dcc_pct| 單調變大——靈敏度單調,支撐反算二分搜尋的正確性。</li>
+        <li>正負不完全對稱(+3cm → +1.75%;−3cm(=delta +3 對應 dist 更遠)→ −1.24%):
+          因 DAC = a + b/dist 是 1/dist 的線性函數,遠端(dist 越大)DAC 變化率較小。</li>
+        <li>delta_cm=0(標稱位置)為基準點,central_dcc = 12.804411、delta_dcc_pct 定義為 0。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具</span><span>實測結果</span></div>
+</section>
+
+<!-- ═══ 6 反算 demo ═════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">實測結果 2/2</div>
+  <h2>反算 demo:給定 1% DCC 誤差預算,nl 越大公差越嚴</h2>
+  <div class="cols">
+    <div class="col card tile" style="border-color:var(--s-fwd)">
+      <div class="v" style="color:var(--s-fwd)">±2.350<span style="font-size:20px;color:var(--muted)"> cm</span></div>
+      <div class="k"><span class="mono">--nl 0.05</span>(示範)<br>budget = 1.00%,標稱 19.05 cm</div>
+    </div>
+    <div class="col card tile" style="border-color:var(--s-inv)">
+      <div class="v" style="color:var(--s-inv)">±1.112<span style="font-size:20px;color:var(--muted)"> cm</span></div>
+      <div class="k"><span class="mono">--nl 0.10</span>(示範)<br>budget = 1.00%,標稱 19.05 cm</div>
+    </div>
+  </div>
+  <div class="card small" style="margin-top:20px">
+    <span class="mono">$ ./build/src/dcc_cli/dcc_cal --dry-run --chart-tol --nl 0.05 --dcc-budget 1.0</span><br>
+    <span class="mono muted">...(正算表)...</span><br>
+    <span class="mono muted"># 反算:中央 DCC 誤差 ≤ 1.00% 對應之 chart 距離公差</span><br>
+    <span class="mono">chart 擺放需準到 ±2.350 cm(標稱 19.05 cm)</span>
+  </div>
+  <ul style="margin-top:18px">
+    <li><strong>nl 加倍(0.05→0.10),允許公差幾乎減半</strong>(±2.350 → ±1.112 cm)——與「nl 是傳導係數」的因果模型一致:
+      nl 越大,同樣 cm 偏移被放大成越大的 DCC 誤差,治具就必須擺得更準。</li>
+    <li>反算演算法:二分搜「單邊 |Δcm|」使 |ΔDCC%| 命中 budget,50 次迭代收斂(閉式解不存在時仍可用)。</li>
+    <li>nl=0 對照(工具自洽性驗證,見 IT-C1):任意距離公差下 ΔDCC ≡ 0,反算會回報「範圍內誤差皆 &lt; 預算」。</li>
+  </ul>
+  <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具</span><span>實測結果</span></div>
+</section>
+
+<!-- ═══ 7 step-by-step 上線演示 ═════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">上線用法</div>
+  <h2>Step-by-step:從實機量測到產線治具公差規格</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="flow" style="flex-direction:column; gap:12px">
+        <div class="fbox"><b>1. 量測非線性 nl</b>
+          <span class="small">外部:球差 / PD 響應飽和,實模組量測,無預設值可代替</span></div>
+        <div class="fbox"><b>2. 取 VCM 兩點標定</b>
+          <span class="small">該鏡頭 INF / MACRO 的 DAC↔物距對照點,填 <span class="mono">--vcm-cal</span></span></div>
+        <div class="fbox"><b>3. 跑 --chart-tol</b>
+          <span class="small mono">dcc_cal --dry-run --chart-tol --nl &lt;實測&gt; --vcm-cal &lt;實測&gt; --dcc-budget &lt;允收&gt;</span></div>
+        <div class="fbox"><b>4. 讀反算行</b>
+          <span class="small">得治具擺放公差 ±cm,交產線治具規格</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:8px">檢查點(第一次跑務必核對)</p>
+      <table class="tbl">
+        <tr><th>情境</th><th>行為</th></tr>
+        <tr><td>缺 <span class="mono">--nl</span></td><td>立即 <span class="mono">exit 3</span> + 提示「實模組量測輸入,無預設值」</td></tr>
+        <tr><td>缺 <span class="mono">--vcm-cal</span></td><td>用示範標定 220:200,620:10 <strong>但印警告</strong>「示範標定值,實機須替換」</td></tr>
+        <tr><td><span class="mono">--vcm-cal</span> 格式錯</td><td><span class="mono">exit 3</span>「格式須為 dac1:cm1,dac2:cm2」</td></tr>
+        <tr><td>兩點標定退化(DAC 相同 / 物距≤0)</td><td><span class="mono">exit 3</span>,E_A01</td></tr>
+      </table>
+      <div class="warn" style="margin-top:16px">
+        ⚠ 若輸出頂行仍是「# 示範標定值,實機須替換」,代表 <span class="mono">--vcm-cal</span> 尚未帶入真實標定——
+        反算出的 ±cm 只是示範數字,<strong>不可直接當產線規格使用</strong>。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具</span><span>上線用法</span></div>
+</section>
+
+<!-- ═══ 8 交付與限制 ════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">交付與限制</div>
+  <h2>交付:換算工具;限制:真實輸入待外部——工具備妥即關閉條件</h2>
+  <div class="cols" style="flex:0 0 auto">
+    <div class="col card tile"><div class="v">2</div><div class="k">新增 core 函式(<span class="mono">calibrate_two_point / dac_to_dist / dist_to_dac</span>)</div></div>
+    <div class="col card tile"><div class="v">1</div><div class="k">新增 CLI 模式 <span class="mono">--chart-tol</span>(正算表 + 反算行)</div></div>
+    <div class="col card tile"><div class="v">95<span style="font-size:24px;color:var(--muted)">/95</span></div><div class="k">測試全綠(92 + 3:UT-C1/C2、IT-C1)</div></div>
+    <div class="col card tile"><div class="v">bit-exact</div><div class="k">既有 --scan / synth nl 路徑零改動</div></div>
+  </div>
+  <div class="cols" style="margin-top:16px">
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:6px">誠實性標示(鐵律 5)</p>
+      <ul class="small" style="font-size:15.5px; line-height:1.4">
+        <li style="margin-bottom:.35em">本投影片與分析文件的所有數字,皆用<strong>示範標定</strong>(220 DAC:200cm、620 DAC:10cm)
+          + <strong>假設 nl 值</strong>(0.05 / 0.10)產生——是換算工具的展示,不是真實量測結果。</li>
+        <li style="margin-bottom:.35em"><span class="mono">--nl</span> 無預設值,強制使用者帶入實測數字,避免誤用示範值當真值。</li>
+        <li><span class="mono">--vcm-cal</span> 有示範預設,但每次輸出印警告行「示範標定值,實機須替換」。</li>
+      </ul>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:6px">開放問題 #3 狀態</p>
+      <div class="card small" style="font-size:15px; line-height:1.45; padding:12px 16px">
+        依 2026-07-17「離線+實驗、不碰硬體」定位,真實 nl 與 VCM 標定屬<strong>外部承擔</strong>——
+        本工具的角色是把「兩個獨立誤差源」正確串接成可雙向換算的工具,<strong>不是</strong>提供某一鏡頭的最終公差數字。<br><br>
+        <strong>關閉條件</strong>:換算工具(正/反算 + 兩點標定 + CLI)備妥,即視為 SPEC-005 §7 #3 關閉——不等待真實量測數據到位。
+      </div>
+    </div>
+  </div>
+  <div class="card small" style="margin-top:12px; font-size:14px; padding:10px 16px">
+    重現:<span class="mono">dcc_cal --dry-run --chart-tol --nl 0.05 --dcc-budget 1.0</span> ·
+    完整分析:docs/chart距離公差分析.md · 設計:docs/superpowers/specs/2026-07-18-chart-distance-tolerance-design.md ·
+    規格:SPEC-005 §7 #3
+  </div>
+  <div class="foot"><span>chart 距離公差 → DCC 靈敏度換算工具 · 2026-07-18</span><span>完</span></div>
+</section>
+
+</div></div>
+<div id="pageno">1 / 8</div>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const stage = document.getElementById("stage");
+  const pageno = document.getElementById("pageno");
+  let cur = 0;
+
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, j) => s.classList.toggle("active", j === cur));
+    pageno.textContent = (cur + 1) + " / " + slides.length;
+    if (location.hash !== "#" + (cur + 1)) history.replaceState(null, "", "#" + (cur + 1));
+  }
+  function fit() {
+    const s = Math.min(window.innerWidth / 1320, window.innerHeight / 760);
+    stage.style.transform = "scale(" + s + ")";
+  }
+  window.addEventListener("resize", fit);
+  window.addEventListener("keydown", (e) => {
+    if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+  });
+  stage.addEventListener("click", (e) => {
+    if (e.clientX > window.innerWidth / 2) show(cur + 1); else show(cur - 1);
+  });
+  const h = parseInt(location.hash.slice(1), 10);
+  fit();
+  show(isNaN(h) ? 0 : h - 1);
+})();
+</script>
+</body>
+</html>
