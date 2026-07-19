@@ -3,6 +3,8 @@
 //   dcc_cal --dry-run [--out DIR] [--sigma S] [--bias B] [--seed N] [--focus-center D]
 //   dcc_cal --seq disp_seq.json [--config config.json] [--out DIR]
 //   dcc_cal --seq disp_seq.json --qsigma        # q→σ 標定(序列需含 quality 面)
+//   dcc_cal --dry-run --chart-tol --nl N [--vcm-cal d1:cm1,d2:cm2] [--chart-dist CM]
+//                                        [--dcc-budget PCT] [--scan-range-cm CM] [--scan-steps N]
 // 結束碼:0 = PASS、1 = 判定 FAIL、2 = 中止(E-xx)、3 = 參數錯誤。
 #include <cmath>
 #include <cstdio>
@@ -15,6 +17,7 @@
 
 #include "dcc_app/pipeline.hpp"
 #include "dcc_app/session.hpp"
+#include "dcc_core/chart_dist.hpp"
 #include "dcc_core/error.hpp"
 #include "dcc_core/qsigma.hpp"
 #include "dcc_core/regression.hpp"
@@ -210,6 +213,88 @@ int main(int argc, char** argv) {
           qsig_rows += row;
         }
         std::printf("\n# qsigma\nsigma,p_hat,sigma0_hat,r2,bins\n%s", qsig_rows.c_str());
+        return 0;
+      }
+
+      // chart 距離公差 → DCC 靈敏度換算(開放問題 #3;設計 2026-07-18)。
+      // cm 偏移 →(chart_dist)→ 合焦偏移 DAC →(synth nl + pipeline)→ 中央 DCC 誤差。
+      if (has_flag(argc, argv, "--chart-tol")) {
+        if (!arg_value(argc, argv, "--nl")) {
+          std::fprintf(stderr,
+                       "--chart-tol 需 --nl(實模組非線性量測值,無預設);nl=0 時 DCC 對距離不敏感\n");
+          return 3;
+        }
+        // VCM 兩點標定(示範預設;實機須換)。格式 dac1:cm1,dac2:cm2。
+        double d1 = 220.0, c1 = 200.0, d2 = 620.0, c2 = 10.0;
+        bool demo_cal = true;
+        if (const char* v = arg_value(argc, argv, "--vcm-cal")) {
+          demo_cal = false;
+          if (std::sscanf(v, "%lf:%lf,%lf:%lf", &d1, &c1, &d2, &c2) != 4) {
+            std::fprintf(stderr, "--vcm-cal 格式須為 dac1:cm1,dac2:cm2\n");
+            return 3;
+          }
+        }
+        dcc::chart_dist::VcmDistModel model;
+        try {
+          model = dcc::chart_dist::calibrate_two_point(d1, c1, d2, c2);
+        } catch (const dcc::DccError& e) {
+          std::fprintf(stderr, "VCM 標定失敗:%s\n", e.what());
+          return 3;
+        }
+        const double nominal_dac = spec.focus_center;  // 掃描窗中點 = 合焦設計點
+        double nominal_cm = dcc::chart_dist::dac_to_dist(model, nominal_dac);
+        if (const char* v = arg_value(argc, argv, "--chart-dist")) nominal_cm = std::stod(v);
+        double budget = 1.0;
+        if (const char* v = arg_value(argc, argv, "--dcc-budget")) budget = std::stod(v);
+        double range_cm = 3.0;
+        int steps = 25;
+        if (const char* v = arg_value(argc, argv, "--scan-range-cm")) range_cm = std::stod(v);
+        if (const char* v = arg_value(argc, argv, "--scan-steps")) steps = std::stoi(v);
+
+        const std::vector<double> flat(221, 1.0);
+        const size_t centers[4] = {19, 20, 27, 28};
+        // 中央 DCC(chart 距離 = nominal_cm + delta_cm 時)
+        auto central = [&](double delta_cm) -> double {
+          auto sc = spec;
+          sc.focus_center = dcc::chart_dist::dist_to_dac(model, nominal_cm + delta_cm);
+          const auto res = dcc::app::run(cfg, dcc::sim::generate(sc), flat, flat);
+          double cd = 0.0;
+          for (size_t idx : centers) cd += res.regions[idx].dcc_raw_px;
+          return cd / 4.0;
+        };
+        const double base_dcc = central(0.0);
+        auto err_pct = [&](double delta_cm) {
+          return 100.0 * (central(delta_cm) - base_dcc) / base_dcc;
+        };
+
+        if (demo_cal)
+          std::printf("# 示範標定值,實機須替換 --vcm-cal(格式 dac1:cm1,dac2:cm2)\n");
+        std::printf("# nominal_cm=%.2f nl=%.4f budget=%.2f%%\n", nominal_cm,
+                    spec.nonlinearity, budget);
+        // 正算表
+        std::printf("dist_cm,delta_cm,offset_dac,central_dcc,delta_dcc_pct\n");
+        for (int i = 0; i < steps; ++i) {
+          const double dc = -range_cm + 2.0 * range_cm * static_cast<double>(i) /
+                                            static_cast<double>(steps - 1);
+          const double off = dcc::chart_dist::dist_to_dac(model, nominal_cm + dc) - nominal_dac;
+          std::printf("%.3f,%.3f,%.3f,%.6f,%.4f\n", nominal_cm + dc, dc, off,
+                      central(dc), err_pct(dc));
+        }
+        // 反算:二分求 |ΔDCC%| == budget 之單邊 Δcm(靈敏度對 |Δcm| 單調)
+        double lo = 0.0, hi = range_cm, tol_cm = -1.0;
+        if (std::fabs(err_pct(hi)) >= budget) {
+          for (int it = 0; it < 50; ++it) {
+            const double mid = 0.5 * (lo + hi);
+            if (std::fabs(err_pct(mid)) < budget) lo = mid; else hi = mid;
+          }
+          tol_cm = 0.5 * (lo + hi);
+        }
+        std::printf("\n# 反算:中央 DCC 誤差 ≤ %.2f%% 對應之 chart 距離公差\n", budget);
+        if (tol_cm >= 0.0)
+          std::printf("chart 擺放需準到 ±%.3f cm(標稱 %.2f cm)\n", tol_cm, nominal_cm);
+        else
+          std::printf("在 ±%.2f cm 範圍內 DCC 誤差皆 < %.2f%%(nl 太小或範圍太窄)\n",
+                      range_cm, budget);
         return 0;
       }
 
