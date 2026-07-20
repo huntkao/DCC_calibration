@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC_calibration · M1 階段報告 — 離線校正引擎與工作台</title>
+<style>
+  /* ── 版面基礎(light 版面、系統字型、零外部資源)──────────────── */
+  :root {
+    --page:    #f9f9f7;  --surface: #fcfcfb;
+    --ink:     #0b0b0b;  --ink-2:   #52514e;  --muted: #898781;
+    --grid:    #e1e0d9;  --axis:    #c3c2b7;
+    --s-fwd:   #2a78d6;
+    --s-inv:   #eb6834;
+    --s-wls:   #4a3aa7;
+    --accent:  #2a78d6;
+    --good:    #006300;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "PingFang TC", "Heiti TC",
+                 "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    overflow: hidden;
+  }
+  #deck { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #stage { flex: none; width: 1280px; height: 720px; position: relative; transform-origin: center center; }
+  .slide {
+    position: absolute; inset: 0; padding: 56px 72px;
+    background: var(--surface); border: 1px solid rgba(11,11,11,0.10);
+    border-radius: 10px; display: none; flex-direction: column;
+  }
+  .slide.active { display: flex; }
+
+  .kicker { font-size: 16px; font-weight: 700; letter-spacing: .12em; color: var(--accent); margin-bottom: 6px; }
+  h2 { font-size: 33px; font-weight: 750; line-height: 1.25; margin-bottom: 20px; }
+  .content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .cols { display: flex; gap: 36px; flex: 1; min-height: 0; }
+  .col { flex: 1; min-width: 0; }
+
+  p, li { font-size: 20px; line-height: 1.6; color: var(--ink); }
+  ul { padding-left: 1.3em; }
+  li { margin-bottom: .45em; }
+  li::marker { color: var(--accent); }
+  .small, .cap { font-size: 16px; color: var(--ink-2); line-height: 1.5; }
+  .muted { color: var(--muted); }
+  strong { font-weight: 720; }
+  em.term { font-style: normal; font-weight: 700; color: var(--accent); }
+
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; }
+  code { background: #efeeea; border-radius: 4px; padding: 1px 6px; }
+
+  table.tbl { border-collapse: collapse; width: 100%; }
+  table.tbl th, table.tbl td {
+    font-size: 17px; padding: 7px 11px; text-align: left;
+    border-bottom: 1px solid var(--grid); line-height: 1.4;
+  }
+  table.tbl th { color: var(--ink-2); font-weight: 700; border-bottom: 2px solid var(--axis); }
+  table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.tbl td.c, table.tbl th.c { text-align: center; }
+  .ok { color: var(--good); font-weight: 700; }
+
+  .card { background: #f4f3f0; border: 1px solid var(--grid); border-radius: 10px; padding: 16px 20px; }
+  .tile { text-align: center; padding: 16px 12px; }
+  .tile .v { font-size: 42px; font-weight: 780; line-height: 1.1; }
+  .tile .k { font-size: 15px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
+
+  .tag { display:inline-block; font-size:12px; font-weight:800; border-radius:4px; padding:1px 8px; vertical-align:1px; }
+  .tag.us { background: var(--accent); color:#fff; }
+  .tag.ext { background:#5a6672; color:#fff; }
+  .tag.m2 { background:#fff; color:#5a6672; border:1.5px dashed #5a6672; }
+  .tag.closed { background: var(--good); color:#fff; }
+
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 20px; display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
+  #pageno { position: absolute; right: 24px; bottom: 18px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 15px; fill: var(--muted); }
+
+  .cover { justify-content: center; }
+  .cover .kicker { font-size: 18px; }
+  .cover h1 { font-size: 50px; font-weight: 800; line-height: 1.22; margin: 10px 0 16px; }
+  .cover .sub { font-size: 25px; color: var(--ink-2); margin-bottom: 30px; }
+  .cover .headline {
+    font-size: 22px; line-height: 1.6; background: #f4f3f0;
+    border-left: 5px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 16px 22px; max-width: 1000px;
+  }
+  .cover .meta { margin-top: 36px; font-size: 16px; color: var(--muted); line-height: 1.7; }
+
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .fbox { background:#f4f3f0; border:1.5px solid var(--axis); border-radius:10px; padding:10px 14px; font-size:16px; line-height:1.45; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center; }
+  .fbox b { font-size:17px; color: var(--accent); }
+  .farrow { align-self:center; padding:0 8px; font-size:22px; color:var(--muted); flex:0 0 auto; }
+
+  @media print {
+    body { overflow: visible; background: #fff; }
+    #deck { position: static; display: block; }
+    #stage { width: auto; height: auto; transform: none !important; }
+    .slide { position: relative; display: flex !important; page-break-after: always; width: 1280px; height: 720px; margin: 0 auto; border: none; }
+    #pageno { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="deck"><div id="stage">
+
+<!-- ═══ 1 封面 + 結論 ═══════════════════════════════════════════════ -->
+<section class="slide cover active">
+  <div class="kicker">DCC_CALIBRATION · 階段報告 · M1 驗收</div>
+  <h1>M1 驗收報告 — 離線校正引擎 + 工作台</h1>
+  <div class="sub">Phase A–G 離線工序 · CLI/GUI 能力等價 · Sim 序列 · 獨立檢視器</div>
+  <div class="headline">
+    <strong>結論:建議驗收通過。</strong>M1 範圍(離線校正引擎 + CLI/GUI 工作台 + Sim 序列生成 +
+    獨立檢視器)功能需求全數實作並測試閉環——<strong>80 案例全綠、build 零警告、
+    CLI/GUI/seqview 煙霧測試通過</strong>。驗收期間發現一項覆蓋缺口(FR-15 有實作無專屬測試),
+    已當場補測關閉。尚待人工:SPEC 系列簽核(校正/演算法兩方)。
+  </div>
+  <div class="meta">
+    2026-07-16(基準 commit <span class="mono">bb2670d</span>)· 複驗 2026-07-17 macOS 結果一致<br>
+    對應文件:docs/M1_驗收報告.md · SPEC-005 §6 出場準則 · 環境:GCC 11.4 / CMake 4.4 / Ninja(依賴 FetchContent 鎖版)
+  </div>
+  <div class="foot"><span>← → 方向鍵翻頁</span><span>共 8 頁</span></div>
+</section>
+
+<!-- ═══ 2 驗收範圍 ══════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">範圍</div>
+  <h2>驗收範圍:入列離線工序,實機/SAD/燒錄外部承擔</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="card" style="height:100%">
+        <p style="font-weight:720; color:var(--good); margin-bottom:8px">入列(M1)<span class="tag us" style="margin-left:8px">本工具</span></p>
+        <ul>
+          <li>Phase A–G 離線工序:sweep 規劃、disp_seq.json 讀取/驗證、單位轉換、粒度聚合、逐區回歸、focus 峰值、交叉驗證、EEPROM 打包 + 可讀等價檔</li>
+          <li>CLI <span class="mono">dcc_cal</span> 與 GUI <span class="mono">dcc_gui</span>(能力等價——解耦試金石)</li>
+          <li>Sim 合成序列工作台</li>
+          <li>獨立檢視器 <span class="mono">dcc_seqview</span>(外部 SAD 團隊自檢用)</li>
+          <li>報告 / log / 失敗落盤</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="height:100%">
+        <p style="font-weight:720; color:#5a6672; margin-bottom:8px">不入列(外部 / 已移出 scope)<span class="tag ext" style="margin-left:8px">外部</span></p>
+        <ul>
+          <li>實機擷取(FR-05/06)</li>
+          <li>SAD disparity 計算(FR-10)</li>
+          <li>EEPROM 實體燒錄</li>
+          <li>HT/AT:重複性、節拍、CDAF 金標</li>
+          <li>條件式 Qualcomm layout 對齊</li>
+        </ul>
+        <div class="small" style="margin-top:14px; border-top:1px solid var(--grid); padding-top:10px">
+          2026-07-17 決議:專案永久定位<strong>離線+實驗、不碰硬體</strong>;原「M2 硬體整合」全部移出 scope。
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M1 驗收報告</span><span>範圍</span></div>
+</section>
+
+<!-- ═══ 3 驗證證據 ══════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">驗證證據</div>
+  <h2>七項實測全數達標(2026-07-16 實測)</h2>
+  <table class="tbl">
+    <tr><th>項目</th><th>準則</th><th>實測</th><th class="c">判定</th></tr>
+    <tr><td>建置</td><td>本專案 targets 零警告</td><td><span class="mono">--clean-first</span> 全量重建,0 警告</td><td class="c ok">✅</td></tr>
+    <tr><td>測試</td><td>ctest 全綠</td><td><strong>80 / 80 passed</strong>(0.6 s)</td><td class="c ok">✅</td></tr>
+    <tr><td>CLI</td><td><span class="mono">--dry-run</span> PASS、五檔齊全</td><td>PASS;report.json/md + block.bin/json/txt</td><td class="c ok">✅</td></tr>
+    <tr><td>GUI</td><td><span class="mono">--smoke</span> 正常結束</td><td>OK</td><td class="c ok">✅</td></tr>
+    <tr><td>seqview</td><td><span class="mono">--smoke</span> 正常結束</td><td>OK</td><td class="c ok">✅</td></tr>
+    <tr><td>離線節拍</td><td>NFR-01 Phase D–G ≤ 1 s</td><td>dry-run 全程 &lt; 0.01 s</td><td class="c ok">✅</td></tr>
+    <tr><td>離線重算</td><td>NFR-03 / IT-06 bit-exact</td><td>同序列重跑報告逐 bit 一致</td><td class="c ok">✅</td></tr>
+  </table>
+  <div class="card small" style="margin-top:16px">
+    複驗:2026-07-17 於 macOS(Darwin 25.5 / AppleClang)在同一 commit 重跑,結果一致(80/80 綠、零警告、三支 smoke OK)——跨平台可移植性(NFR-04)得到佐證。
+  </div>
+  <div class="foot"><span>M1 驗收報告</span><span>驗證證據</span></div>
+</section>
+
+<!-- ═══ 4 測試對映 + 數量閉環 ═══════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">測試對映(鐵律 5:驗算文化)</div>
+  <h2>50 規格對映 + 30 補充覆蓋 = 80,案例數閉環</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.25">
+      <table class="tbl">
+        <tr><th>SPEC-005 ID</th><th>對象</th><th class="num">數</th><th>重點</th></tr>
+        <tr><td>UT-01..10</td><td>sweep/讀取/單位/無效/回歸/focus/驗證/eeprom/守則/聚合</td><td class="num">40</td><td>k=12.46、b=420、0x031D</td></tr>
+        <tr><td>UT-補充</td><td>eeprom_equiv + FR-15 平滑性</td><td class="num">3</td><td>993 bytes 閉環</td></tr>
+        <tr><td>IT-01..07</td><td>dry-run / 無效 / L-R 對調 / chart 錯 / 重算 / 誤差預算</td><td class="num">7</td><td>IT-05 屬實機 <span class="tag m2">M2</span></td></tr>
+        <tr><td colspan="2" style="text-align:right; font-weight:700">規格對映小計</td><td class="num" style="font-weight:700">50</td><td></td></tr>
+        <tr><td>補充覆蓋</td><td>sim 注入/quality 7、OQ#3 靈敏度 4、config 4、raw 3、logging 1、seqview 11</td><td class="num">30</td><td></td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <div class="card tile" style="border-color:var(--accent)">
+        <div class="v" style="color:var(--accent)">80</div>
+        <div class="k">= 50 規格對映 + 30 補充覆蓋<br>= ctest 案例總數 ✓</div>
+      </div>
+      <div class="card small" style="margin-top:16px">
+        <strong>盤點發現(§4.3)</strong>:FR-15(DCC 平滑性警告)有實作(<span class="mono">pipeline.cpp</span>,config <span class="mono">smooth_limit</span> 預設 0.25)但無專屬測試。已補測(commit <span class="mono">bdd00f5</span>):預設不誤報、門檻 0.01 觸發含區座標、不影響 PASS。<strong>除此之外未見規格—實作—測試三方不一致。</strong>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M1 驗收報告</span><span>測試對映</span></div>
+</section>
+
+<!-- ═══ 5 需求覆蓋 ══════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">需求覆蓋(SPEC-001)</div>
+  <h2>FR-01..18 / NFR-01..05:離線範圍全覆蓋</h2>
+  <div class="cols">
+    <div class="col">
+      <table class="tbl">
+        <tr><th>需求</th><th>覆蓋</th><th class="c">狀態</th></tr>
+        <tr><td>FR-01/02 config/前置</td><td>config 4 案例 + UT-01</td><td class="c ok">✅</td></tr>
+        <tr><td>FR-03/04 sweep 公式/單向</td><td>UT-01(禁寫死)+ 設計面無反轉參數</td><td class="c ok">✅</td></tr>
+        <tr><td>FR-05/06 實機擷取</td><td>—</td><td class="c"><span class="tag ext">外部</span></td></tr>
+        <tr><td>FR-07 HAL 注入</td><td>SimHAL 貫穿 IT-01</td><td class="c ok">✅</td></tr>
+        <tr><td>FR-08/09 讀取/單位</td><td>UT-02/03/09/10(兩處轉換)</td><td class="c ok">✅</td></tr>
+        <tr><td>FR-10 SAD 計算</td><td>介面條款 §3a 由 IT-07 閉環</td><td class="c"><span class="tag ext">外部</span></td></tr>
+        <tr><td>FR-11..14 回歸/focus/驗證</td><td>UT-04/05/06/07</td><td class="c ok">✅</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <table class="tbl">
+        <tr><th>需求</th><th>覆蓋</th><th class="c">狀態</th></tr>
+        <tr><td>FR-15 平滑性警告</td><td>本次補測(§4.3)</td><td class="c ok">✅</td></tr>
+        <tr><td>FR-16 EEPROM 打包</td><td>UT-08 + SimNvm 回讀 + 等價檔</td><td class="c ok">✅</td></tr>
+        <tr><td>FR-17 單模組報告</td><td>IT-06 五檔;雙單位 + ratio_check</td><td class="c ok">✅</td></tr>
+        <tr><td>FR-18 RAW 唯讀</td><td>load/generate 3 案例(缺檔降級)</td><td class="c ok">✅</td></tr>
+        <tr><td>NFR-01 節拍</td><td>離線 &lt;0.01 s;實機 HT-02</td><td class="c ok">✅<span class="small">(離線)</span></td></tr>
+        <tr><td>NFR-02 重複性 CV&lt;2%</td><td>IT-07 蒙地卡羅代理</td><td class="c ok">✅<span class="small">(代理)</span></td></tr>
+        <tr><td>NFR-03 可追溯</td><td>雙 sink log + 重算 + abort_dump</td><td class="c ok">✅</td></tr>
+        <tr><td>NFR-04/05 可移植/繁中</td><td>core 純 C++17;繁中 UTF-8 + glyph 自檢</td><td class="c ok">✅</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>M1 驗收報告</span><span>需求覆蓋</span></div>
+</section>
+
+<!-- ═══ 6 鐵律遵循 ══════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">鐵律遵循抽查</div>
+  <h2>五條鐵律逐項釘死,建置系統與測試強制</h2>
+  <table class="tbl">
+    <tr><th class="c" style="width:52px">#</th><th>鐵律</th><th>證據</th></tr>
+    <tr><td class="c"><strong>1</strong></td><td>單位契約(16 倍陷阱)</td><td>轉換僅 <span class="mono">disparity_reader</span>(入)與打包端(出)兩處;UT-09 <span class="mono">ratio_check</span> 釘死漏乘/重複乘</td></tr>
+    <tr><td class="c"><strong>2</strong></td><td>分層</td><td>core 無外部依賴;依賴方向 gui/cli → app → io/hal → core,<strong>建置系統強制</strong></td></tr>
+    <tr><td class="c"><strong>3</strong></td><td>掃描方向 FAR→NEAR</td><td><span class="mono">sweep::plan</span> 無反轉參數(VCM 磁滯)</td></tr>
+    <tr><td class="c"><strong>4</strong></td><td>失敗落盤 + 具名錯誤碼</td><td>IT-03 驗證 <span class="mono">abort_dump.json</span>;錯誤碼收斂為 E-A01/C01/D01..03/E01/F01/G01(M1 出口收斂完成)</td></tr>
+    <tr><td class="c"><strong>5</strong></td><td>驗算文化</td><td>案例數 50+30=80 閉環;block 993 bytes 閉環;288×432 尺寸鏈(PhaseD-1 圖解)</td></tr>
+  </table>
+  <div class="card small" style="margin-top:18px">
+    分層(鐵律 2)與掃描方向(鐵律 3)是<strong>設計面保證</strong>——不是靠測試抓,而是介面本身無法違反(<span class="mono">sweep::plan</span> 沒有方向參數、core 不 link 任何 I/O)。這是「違反 = 編譯不過」而非「違反 = 測試紅」。
+  </div>
+  <div class="foot"><span>M1 驗收報告</span><span>鐵律遵循</span></div>
+</section>
+
+<!-- ═══ 7 遺留 + 開放問題 ═══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">遺留事項與出場準則</div>
+  <h2>介面凍結完成,開放問題全數關閉或明確延期</h2>
+  <div class="cols">
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:6px">介面凍結</p>
+      <ul>
+        <li>輸入 <span class="mono">disp_seq.json</span> v1(2026-07-16,含 focus 必填 + 精度驗收條款)</li>
+        <li>輸出 EEPROM layout 轉正 + <span class="mono">block.json/txt</span> 可讀等價檔</li>
+      </ul>
+      <p style="font-weight:720; margin:14px 0 6px">開放問題處置(SPEC-005 §7)</p>
+      <ul>
+        <li>#5 早已關閉<span class="tag closed" style="margin-left:6px">關閉</span></li>
+        <li>#1/#2/#4 因不碰硬體 → 「不在 scope / 外部承擔」<span class="tag closed" style="margin-left:6px">關閉</span></li>
+        <li>#3 轉為離線實驗任務(分析框架已備)<span class="tag closed" style="margin-left:6px">關閉</span></li>
+      </ul>
+      <div class="card small" style="margin-top:10px; border-color:var(--good)">
+        <strong style="color:var(--good)">出場準則「全數關閉或明確延期」成立。</strong>
+      </div>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:6px">下一階段(離線分析/實驗)</p>
+      <ul>
+        <li>非線性量測 → chart 距離公差換算</li>
+        <li>Sim focus 面雜訊注入</li>
+        <li>q→σ 標定(fitter 升級用)</li>
+      </ul>
+      <p style="font-weight:720; margin:14px 0 6px">已移出 scope</p>
+      <ul>
+        <li>實機 HAL/NvmIF 實作、EEPROM 實體燒錄</li>
+        <li>HT/AT(重複性 / 節拍 NFR-01 ≤4s / CDAF 金標)</li>
+        <li>IT-05 曝光過高幀(需實機擷取)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>M1 驗收報告</span><span>遺留與出場準則</span></div>
+</section>
+
+<!-- ═══ 8 簽核 ══════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">簽核(SPEC-005 §6 出場準則)</div>
+  <h2>建議驗收通過 —— 待校正 / 演算法兩方簽核</h2>
+  <div class="cols">
+    <div class="col">
+      <table class="tbl">
+        <tr><th>角色</th><th class="c">簽核</th><th class="c">日期</th></tr>
+        <tr><td>校正</td><td class="c">____________</td><td class="c">__________</td></tr>
+        <tr><td>演算法</td><td class="c">____________</td><td class="c">__________</td></tr>
+      </table>
+      <div class="card small" style="margin-top:18px">
+        rev 2026-07-17:專案不進產線,簽核角色由三方改為<strong>校正 / 演算法兩方</strong>(SPEC-005 §6 出場準則第一條)。
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="height:100%">
+        <p style="font-weight:720; margin-bottom:8px">一頁重點</p>
+        <ul style="font-size:18px">
+          <li><strong>80/80 綠</strong>、build 零警告、三支 smoke OK</li>
+          <li>50+30=80 案例數閉環(鐵律 5)</li>
+          <li>FR/NFR 離線範圍全覆蓋;FR-15 缺口當場補測關閉</li>
+          <li>五條鐵律逐項釘死(分層/單向為設計面保證)</li>
+          <li>介面凍結完成;開放問題全數關閉 → <strong>出場準則成立</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M1 驗收報告 · 2026-07-16(複驗 07-17)· 基準 commit bb2670d</span><span>簽核</span></div>
+</section>
+
+</div></div>
+<div id="pageno">1 / 8</div>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const stage = document.getElementById("stage");
+  const pageno = document.getElementById("pageno");
+  let cur = 0;
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, j) => s.classList.toggle("active", j === cur));
+    pageno.textContent = (cur + 1) + " / " + slides.length;
+    if (location.hash !== "#" + (cur + 1)) history.replaceState(null, "", "#" + (cur + 1));
+  }
+  function fit() {
+    const s = Math.min(window.innerWidth / 1320, window.innerHeight / 760);
+    stage.style.transform = "scale(" + s + ")";
+  }
+  window.addEventListener("resize", fit);
+  window.addEventListener("keydown", (e) => {
+    if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+  });
+  stage.addEventListener("click", (e) => {
+    if (e.clientX > window.innerWidth / 2) show(cur + 1); else show(cur - 1);
+  });
+  const h = parseInt(location.hash.slice(1), 10);
+  fit();
+  show(isNaN(h) ? 0 : h - 1);
+})();
+</script>
+</body>
+</html>

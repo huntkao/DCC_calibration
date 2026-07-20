@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC_calibration · M2 階段報告 — 離線分析與實驗能力擴充</title>
+<style>
+  /* ── 版面基礎(light 版面、系統字型、零外部資源)──────────────── */
+  :root {
+    --page:    #f9f9f7;  --surface: #fcfcfb;
+    --ink:     #0b0b0b;  --ink-2:   #52514e;  --muted: #898781;
+    --grid:    #e1e0d9;  --axis:    #c3c2b7;
+    --s-fwd:   #2a78d6;
+    --s-inv:   #eb6834;
+    --s-wls:   #4a3aa7;
+    --accent:  #2a78d6;
+    --good:    #006300;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "PingFang TC", "Heiti TC",
+                 "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+    overflow: hidden;
+  }
+  #deck { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #stage { flex: none; width: 1280px; height: 720px; position: relative; transform-origin: center center; }
+  .slide {
+    position: absolute; inset: 0; padding: 56px 72px;
+    background: var(--surface); border: 1px solid rgba(11,11,11,0.10);
+    border-radius: 10px; display: none; flex-direction: column;
+  }
+  .slide.active { display: flex; }
+
+  .kicker { font-size: 16px; font-weight: 700; letter-spacing: .12em; color: var(--accent); margin-bottom: 6px; }
+  h2 { font-size: 32px; font-weight: 750; line-height: 1.25; margin-bottom: 18px; }
+  .content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .cols { display: flex; gap: 34px; flex: 1; min-height: 0; }
+  .col { flex: 1; min-width: 0; }
+
+  p, li { font-size: 20px; line-height: 1.58; color: var(--ink); }
+  ul { padding-left: 1.3em; }
+  li { margin-bottom: .42em; }
+  li::marker { color: var(--accent); }
+  .small, .cap { font-size: 15.5px; color: var(--ink-2); line-height: 1.5; }
+  .muted { color: var(--muted); }
+  strong { font-weight: 720; }
+  em.term { font-style: normal; font-weight: 700; color: var(--accent); }
+
+  .math {
+    font-size: 20px; line-height: 1.7; background: #f4f3f0;
+    border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;
+    padding: 11px 18px; margin: 9px 0;
+  }
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; }
+  code { background: #efeeea; border-radius: 4px; padding: 1px 6px; }
+
+  table.tbl { border-collapse: collapse; width: 100%; }
+  table.tbl th, table.tbl td {
+    font-size: 16.5px; padding: 7px 10px; text-align: left;
+    border-bottom: 1px solid var(--grid); line-height: 1.38;
+  }
+  table.tbl th { color: var(--ink-2); font-weight: 700; border-bottom: 2px solid var(--axis); }
+  table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.tbl td.c, table.tbl th.c { text-align: center; }
+  table.tbl tr.hi td { background: #eaf2fc; font-weight: 700; }
+  .ok { color: var(--good); font-weight: 700; }
+
+  .chip { display:inline-block; width:13px; height:13px; border-radius:4px; margin-right:6px; vertical-align:-1px; }
+  .chip.fwd{background:var(--s-fwd);} .chip.inv{background:var(--s-inv);} .chip.wls{background:var(--s-wls);}
+
+  .card { background: #f4f3f0; border: 1px solid var(--grid); border-radius: 10px; padding: 15px 19px; }
+  .tile { text-align: center; padding: 16px 12px; }
+  .tile .v { font-size: 40px; font-weight: 780; line-height: 1.1; }
+  .tile .k { font-size: 15px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
+
+  .tag { display:inline-block; font-size:12px; font-weight:800; border-radius:4px; padding:1px 8px; vertical-align:1px; }
+  .tag.us { background: var(--accent); color:#fff; }
+  .tag.ext { background:#5a6672; color:#fff; }
+  .tag.done { background: var(--good); color:#fff; }
+  .tag.wait { background:#fff; color:#8a5a00; border:1.5px dashed #c99a3a; }
+
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 20px; display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
+  #pageno { position: absolute; right: 24px; bottom: 18px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 14px; fill: var(--muted); }
+  .dlabel { font-size: 15px; font-weight: 700; }
+
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .fbox { background:#f4f3f0; border:1.5px solid var(--axis); border-radius:10px; padding:11px 14px; font-size:16px; line-height:1.45; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center; }
+  .fbox b { font-size:17px; color: var(--accent); }
+  .farrow { align-self:center; padding:0 9px; font-size:23px; color:var(--muted); flex:0 0 auto; }
+
+  .warn { background:#fbf1e6; border:1px solid #e3c9a0; border-left:5px solid var(--s-inv); border-radius:0 10px 10px 0; padding:11px 17px; font-size:16.5px; line-height:1.55; }
+
+  .cover { justify-content: center; }
+  .cover .kicker { font-size: 18px; }
+  .cover h1 { font-size: 48px; font-weight: 800; line-height: 1.22; margin: 10px 0 14px; }
+  .cover .sub { font-size: 24px; color: var(--ink-2); margin-bottom: 28px; }
+  .cover .headline {
+    font-size: 21px; line-height: 1.58; background: #f4f3f0;
+    border-left: 5px solid var(--accent); border-radius: 0 10px 10px 0;
+    padding: 15px 22px; max-width: 1000px;
+  }
+  .cover .meta { margin-top: 32px; font-size: 15.5px; color: var(--muted); line-height: 1.7; }
+
+  @media print {
+    body { overflow: visible; background: #fff; }
+    #deck { position: static; display: block; }
+    #stage { width: auto; height: auto; transform: none !important; }
+    .slide { position: relative; display: flex !important; page-break-after: always; width: 1280px; height: 720px; margin: 0 auto; border: none; }
+    #pageno { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="deck"><div id="stage">
+
+<!-- ═══ 1 封面 + 結論 ═══════════════════════════════════════════════ -->
+<section class="slide cover active">
+  <div class="kicker">DCC_CALIBRATION · 階段報告 · M2 離線分析/實驗</div>
+  <h1>M2 階段報告 — 離線分析與實驗能力擴充</h1>
+  <div class="sub">範圍收斂:永久定位離線 + 實驗,不碰硬體</div>
+  <div class="headline">
+    <strong>結論:</strong>2026-07-17 決議將專案<strong>永久定位為離線校正 + 實驗工具</strong>,
+    原「M2 硬體整合 / M3 產線化」移出 scope。本階段完成兩項離線實驗能力:
+    <strong>① q→σ 標定 + WLS/EIV fitter 精度演練</strong>、<strong>② chart 距離公差 → DCC 靈敏度換算工具</strong>
+    (關閉開放問題 #3)。測試 <strong>80 → 95</strong> 全綠;真實量測(nl / VCM 標定)為外部輸入。
+  </div>
+  <div class="meta">
+    2026-07-17 ～ 07-19 · 對應:docs/開發紀錄_M0-M1.md §7 · docs/fitter實驗_反向WLS與EIV.md · docs/chart距離公差分析.md<br>
+    規格:SPEC-000 §6、SPEC-005 §6/§7 · 測試:95/95 綠、build 零警告、CLI/GUI/seqview smoke OK
+  </div>
+  <div class="foot"><span>← → 方向鍵翻頁</span><span>共 10 頁</span></div>
+</section>
+
+<!-- ═══ 2 範圍決議 ══════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">範圍決議(2026-07-17)</div>
+  <h2>M2 重定義:從「硬體整合」改為「離線分析 / 實驗」</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="card" style="height:100%; border-color:#5a6672">
+        <p style="font-weight:720; color:#5a6672; margin-bottom:8px">移出 scope(原 M2/M3)<span class="tag ext" style="margin-left:6px">外部</span></p>
+        <ul>
+          <li>實機擷取(MotorIF / CaptureIF 實作)</li>
+          <li>NvmIF 實體燒錄、Qualcomm layout 對齊</li>
+          <li>HT/AT:重複性 / 節拍 / CDAF 金標</li>
+          <li>產線化(M3)</li>
+        </ul>
+        <div class="small" style="margin-top:12px; border-top:1px solid var(--grid); padding-top:10px">
+          HAL/NvmIF 介面僅保留 <span class="mono">Sim*</span> 實作,不再規劃實機對接。
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="height:100%; border-color:var(--accent)">
+        <p style="font-weight:720; color:var(--accent); margin-bottom:8px">M2 重定義(離線分析/實驗)<span class="tag us" style="margin-left:6px">本工具</span></p>
+        <ul>
+          <li>chart 距離公差靈敏度換算</li>
+          <li>Sim 雜訊注入 / fitter 精度演練</li>
+          <li>q→σ 標定</li>
+          <li>消費外部 disparity/focus 序列,離線產出校正結果與報告</li>
+        </ul>
+        <div class="small" style="margin-top:12px; border-top:1px solid var(--grid); padding-top:10px">
+          出場準則簽核由三方改為<strong>校正 / 演算法兩方</strong>(SPEC-005 §6)。
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>範圍決議</span></div>
+</section>
+
+<!-- ═══ 3 M2 進度總覽 ═══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">進度總覽(開發紀錄 §7)</div>
+  <h2>三項離線待辦:兩項完成,一項待需要時再補</h2>
+  <table class="tbl">
+    <tr><th class="c" style="width:52px">#</th><th>待辦</th><th>成果</th><th class="c">狀態</th></tr>
+    <tr class="hi"><td class="c">1</td><td>chart 距離公差換算工具</td><td><span class="mono">chart_dist</span> 兩點標定模型 + CLI <span class="mono">--chart-tol</span>(正/反算);關閉開放問題 #3</td><td class="c"><span class="tag done">完成</span><br><span class="small">07-18/19</span></td></tr>
+    <tr class="hi"><td class="c">3</td><td>q→σ 標定 + WLS/EIV fitter</td><td><span class="mono">--qsigma</span> 標定 + 四種 fitter 精度演練 + 蒙地卡羅量化改善</td><td class="c"><span class="tag done">完成</span><br><span class="small">07-17</span></td></tr>
+    <tr><td class="c">2</td><td>Sim focus 面雜訊 / 獨立無效標記</td><td>目前僅 disparity 面有注入;focus 面 4 階擬合有平滑效果,預期耐受性佳</td><td class="c"><span class="tag wait">待需要</span></td></tr>
+  </table>
+  <div class="card small" style="margin-top:16px">
+    場曲 / 振幅衰減(<span class="mono">field_curvature</span> / <span class="mono">focus_amp_falloff</span>)已於 M1c 後補入 synth。
+    待辦 #2 僅在需要演練「focus 面雜訊對峰值擬合之影響」時才補——非阻擋項。
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>進度總覽</span></div>
+</section>
+
+<!-- ═══ 4 成果① 理論 ═══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">成果 ① · q→σ 標定 + WLS/EIV fitter · 理論</div>
+  <h2>回歸自變數含噪 → 誤差在變數(EIV),前向 OLS 有衰減偏差</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="math">DAC = k · disparity + b</div>
+      <ul style="margin-top:8px">
+        <li><strong>DAC 是精確值</strong>(VCM 命令),<strong>disparity 是量測值(含噪)</strong>——自變數含噪即 EIV。</li>
+        <li>前向 OLS(對 disparity 回歸)有<em class="term">衰減偏差</em>(把斜率往 0 拉),隨 σ² 放大。</li>
+        <li>反向 OLS(對 DAC 回歸)消偏,但變異(CV)較大。</li>
+      </ul>
+      <div class="card small" style="margin-top:10px">
+        q→σ 標定:<span class="math" style="display:inline-block; padding:4px 10px; margin:0">σ(q) = σ₀ · q<sup>−p</sup></span>,橋接權重指數 <strong>γ = 2p</strong>。
+        n=10 擬合殘差需 studentized 槓桿修正 <span class="mono">|e|/√(1−h_ff)</span>。
+      </div>
+    </div>
+    <div class="col">
+      <table class="tbl">
+        <tr><th>fitter</th><th>特性</th></tr>
+        <tr><td><span class="chip fwd"></span>ols_forward</td><td>v1 預設;衰減偏差</td></tr>
+        <tr><td><span class="chip inv"></span>ols_inverse</td><td>消偏;變異較大</td></tr>
+        <tr><td><span class="chip wls"></span>wls_inverse</td><td>加權(w=q<sup>γ</sup>);消變異</td></tr>
+        <tr><td>deming</td><td>δ=0 ≡ inverse、δ→∞ ≡ forward</td></tr>
+      </table>
+      <div class="warn" style="margin-top:12px">
+        Deming(δ=0)與反向<strong>逐列位元級一致</strong>(UT 釘死)——主表 4 個 σ 下 deming 與 ols_inverse 完全相同,驗證通過。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>成果 ① 理論</span></div>
+</section>
+
+<!-- ═══ 5 成果① 實驗結果 ═══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">成果 ① · 蒙地卡羅實驗(10 seeds/σ,配對比較)</div>
+  <h2>bias% / CV% / RMSE%:WLS(γ=1)綜合 RMSE 全域最佳</h2>
+  <div class="cols">
+    <div class="col" style="flex:1.35">
+      <table class="tbl">
+        <tr><th class="num">σ</th><th>fitter</th><th class="num">bias%</th><th class="num">CV%</th><th class="num">RMSE%</th></tr>
+        <tr><td class="num">0.50</td><td><span class="chip fwd"></span>forward</td><td class="num">−0.017</td><td class="num">1.023</td><td class="num">2.315</td></tr>
+        <tr><td class="num">0.50</td><td><span class="chip inv"></span>inverse</td><td class="num">0.212</td><td class="num">1.027</td><td class="num">2.323</td></tr>
+        <tr class="hi"><td class="num">0.50</td><td><span class="chip wls"></span>wls γ1</td><td class="num">0.157</td><td class="num">0.932</td><td class="num">2.245</td></tr>
+        <tr><td class="num">1.00</td><td><span class="chip fwd"></span>forward</td><td class="num">−0.407</td><td class="num">2.037</td><td class="num">4.645</td></tr>
+        <tr><td class="num">1.00</td><td><span class="chip inv"></span>inverse</td><td class="num">0.508</td><td class="num">2.068</td><td class="num">4.686</td></tr>
+        <tr class="hi"><td class="num">1.00</td><td><span class="chip wls"></span>wls γ1</td><td class="num">0.391</td><td class="num">1.878</td><td class="num">4.523</td></tr>
+        <tr><td class="num">2.00</td><td><span class="chip fwd"></span>forward</td><td class="num">−2.296</td><td class="num">3.991</td><td class="num">9.429</td></tr>
+        <tr><td class="num">2.00</td><td><span class="chip inv"></span>inverse</td><td class="num">1.372</td><td class="num">4.226</td><td class="num">9.686</td></tr>
+        <tr class="hi"><td class="num">2.00</td><td><span class="chip wls"></span>wls γ1</td><td class="num">1.104</td><td class="num">3.846</td><td class="num">9.313</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <ul style="font-size:18px">
+        <li>前向偏差隨 σ² 放大:σ=0.5 → −0.017%,σ=2.0 → −2.30%(理論吻合)。</li>
+        <li>反向消偏但 CV 較差,綜合 <strong>RMSE 四者最差</strong>——單純追消偏反而更差。</li>
+        <li><strong>WLS(γ=1)RMSE 全域最低</strong>;γ 錯標不敏感(γ=0.5/2 差距 ≪ 用不用 WLS 的 ~9% 改善)。</li>
+      </ul>
+      <div class="card small" style="margin-top:8px">
+        重現:<span class="mono">dcc_cal --dry-run --fitter-scan</span>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>成果 ① 實驗</span></div>
+</section>
+
+<!-- ═══ 6 成果① 結論建議 ═══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">成果 ① · 結論與建議</div>
+  <h2>維持 forward 預設;σ≥1 才條件式啟用 WLS(γ=1)</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="card" style="height:100%; border-color:var(--good)">
+        <p style="font-weight:720; color:var(--good); margin-bottom:8px">建議路徑</p>
+        <ul style="font-size:18.5px">
+          <li>σ ≤ 0.5(§3a 典型預算):<strong>維持預設 ols_forward</strong>——偏差 0.038%(σ=0.2)～ −0.017%(σ=0.5),落在 50-seed 蒙地卡羅雜訊底內、符號不穩,遠低於任一容差門檻(20/15/10%)。</li>
+          <li>σ ≥ 1(低品質 SAD / 稀疏取樣):啟用 <span class="mono">wls_inverse</span>(γ 預設 1 即可),~9% CV 改善且 RMSE 全域最佳。</li>
+          <li><strong>不建議</strong>把預設全面換 ols_inverse(RMSE 最差)。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:6px">真實 SAD quality 到位後(現成命令)</p>
+      <ol style="font-size:18px">
+        <li><span class="mono">dcc_cal --seq &lt;序列&gt; --qsigma</span> 取 p̂ / σ̂₀ / r² / bins;檢查 r²(單序列 ~480 樣本 r²≈0.7–0.8 正常;r²&lt;0.5 或 p̂≤0 不上 WLS)。</li>
+        <li>γ̂ = 2p̂ 換算權重指數(本合成資料 γ̂≈0.8,仍在安全範圍)。</li>
+        <li>寫回 config <span class="mono">regression.fitter</span> 與 γ;噪聲在典型預算內則維持 forward。</li>
+      </ol>
+      <div class="card small" style="margin-top:10px">
+        示範資料 <span class="mono">data/examples/demo_fitter_wls_seq.json</span> + step-by-step 見 docs/fitter實驗_投影片.html p.13–16。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>成果 ① 建議</span></div>
+</section>
+
+<!-- ═══ 7 成果② 模型 ═══════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">成果 ② · chart 距離公差換算 · 模型</div>
+  <h2>兩個獨立誤差源,經 nl 這個傳導係數耦合</h2>
+  <div class="cols">
+    <div class="col">
+      <svg viewBox="0 0 520 360" width="100%" aria-label="nl=0 平線 vs nl≠0 斜線">
+        <line x1="55" y1="185" x2="495" y2="185" stroke="var(--axis)" stroke-width="1.5"/>
+        <line x1="275" y1="330" x2="275" y2="22" stroke="var(--axis)" stroke-width="1.5"/>
+        <text x="275" y="352" text-anchor="middle" class="axis-label">合焦偏移(DAC,由 chart 距離誤差轉來)</text>
+        <text x="22" y="176" text-anchor="middle" class="axis-label" transform="rotate(-90 22 176)">DCC 誤差 ΔDCC%</text>
+        <line x1="62" y1="185" x2="470" y2="185" stroke="var(--s-fwd)" stroke-width="3"/>
+        <line x1="62" y1="305" x2="470" y2="65" stroke="var(--s-inv)" stroke-width="3"/>
+        <text x="466" y="60" text-anchor="end" class="dlabel" fill="var(--s-inv)">nl ≠ 0:斜率隨 nl 增大</text>
+        <text x="466" y="181" text-anchor="end" class="dlabel" fill="var(--s-fwd)">nl = 0:恆為 0(平線)</text>
+      </svg>
+    </div>
+    <div class="col">
+      <div class="math">DAC = a + b / dist_cm</div>
+      <p class="small" style="margin:4px 0 8px">兩點標定(鏡頭專屬 INF/MACRO):b = (dac₁−dac₂)/(1/dist₁−1/dist₂),&nbsp; a = dac₁ − b/dist₁</p>
+      <ul style="font-size:18.5px">
+        <li>① 曲線非線性「合焦偏移(DAC)→ DCC 誤差」:已由 <span class="mono">--scan</span> + synth <span class="mono">nl</span> 驗證。</li>
+        <li>② chart 物理距離「cm → 合焦偏移(DAC)」:原僅文字工序、程式零實作 —— <strong>本階段補上</strong>(<span class="mono">chart_dist</span>)。</li>
+        <li><strong>因果</strong>:二者是<em class="term">平行的獨立誤差源</em>,只有透過 nl 耦合才顯現;<strong>nl=0 時 DCC 對 chart 距離完全不敏感</strong>。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>成果 ② 模型</span></div>
+</section>
+
+<!-- ═══ 8 成果② 正/反算 ════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">成果 ② · 雙向換算</div>
+  <h2>反算取近/遠兩側較嚴者(近側)——凸模型不對稱</h2>
+  <div class="flow" style="margin-bottom:16px">
+    <div class="fbox"><b>cm 公差</b><br>治具擺放誤差</div>
+    <div class="farrow">→ ②</div>
+    <div class="fbox"><b>DAC offset</b><br>合焦偏移</div>
+    <div class="farrow">→ ①</div>
+    <div class="fbox"><b>ΔDCC%</b><br>中央 4 區</div>
+    <div class="farrow">⇄</div>
+    <div class="fbox" style="border-color:var(--accent)"><b>反算 ±cm</b><br>給 budget 回推</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="card tile" style="border-color:var(--s-fwd)">
+        <div class="v" style="color:var(--s-fwd)">±1.851<span style="font-size:18px;color:var(--muted)"> cm</span></div>
+        <div class="k"><span class="mono">--nl 0.05</span>(示範)· budget 1.0%<br>近側 1.851 / 遠側 2.350</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card tile" style="border-color:var(--s-inv)">
+        <div class="v" style="color:var(--s-inv)">±0.977<span style="font-size:18px;color:var(--muted)"> cm</span></div>
+        <div class="k"><span class="mono">--nl 0.10</span>(示範)· budget 1.0%<br>近側 0.977 / 遠側 1.112</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="warn" style="height:100%">
+        <strong>不對稱修正(鐵律 5)</strong>:<span class="mono">DAC=a+b/dist</span> 為凸函數,同 |Δcm| 下近側 DAC 偏移較大、較早破 budget。早期單側(遠)版會低估所需精度 → 改<strong>雙側二分、對外報較嚴者</strong>(IT-C1(d) 鎖定)。
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>成果 ② 換算</span></div>
+</section>
+
+<!-- ═══ 9 測試/品質 ════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">測試與品質</div>
+  <h2>80 → 95 全綠;每項成果 TDD + 子代理審查閉環</h2>
+  <div class="cols">
+    <div class="col">
+      <table class="tbl">
+        <tr><th>階段</th><th>新增</th><th class="num">案例</th></tr>
+        <tr><td>M1 基準</td><td>—</td><td class="num">80</td></tr>
+        <tr><td>成果 ① fitter/qsigma</td><td>fitter MC + qsigma 標定 + CLI fitter-scan</td><td class="num">+12</td></tr>
+        <tr><td>成果 ② chart_dist</td><td>UT-C1 往返/線性、UT-C2 退化 E_A01、IT-C1 鏈路</td><td class="num">+3</td></tr>
+        <tr class="hi"><td colspan="2" style="text-align:right">現行總數</td><td class="num">95</td></tr>
+      </table>
+      <div class="card small" style="margin-top:14px">
+        全綠 0.5 s、build 零警告、CLI/GUI/seqview smoke OK。開放問題 #3 之判讀框架:量到實模組 nl 即可換算 chart 距離公差。
+      </div>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:6px">品質做法</p>
+      <ul style="font-size:18.5px">
+        <li>先寫測試(TDD)、再實作;每任務 implementer + 審查子代理雙軌。</li>
+        <li>審查揪出實質問題並修正:<br>— fitter:qsigma p̂ 低估 → studentized 槓桿修正;<br>— chart:反算單側 → 改雙側取較嚴者。</li>
+        <li>最終全支審查判定 <strong>MERGEABLE</strong> 後才合入 / push。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告</span><span>測試與品質</span></div>
+</section>
+
+<!-- ═══ 10 誠實性 + 下一步 ══════════════════════════════════════════ -->
+<section class="slide">
+  <div class="kicker">誠實性限制與下一步</div>
+  <h2>真實量測為外部輸入;工具備妥即關閉條件</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="card" style="height:100%">
+        <p style="font-weight:720; margin-bottom:8px">誠實性(鐵律 5)</p>
+        <ul style="font-size:18.5px">
+          <li>真實 <strong>nl</strong> 與 <strong>VCM 兩點標定</strong>是鏡頭專屬光學量測,本工具拿不到——一律走 config/CLI 輸入。</li>
+          <li><span class="mono">--nl</span> 無預設(缺 → exit 3);<span class="mono">--vcm-cal</span> 示範值印「示範標定值,實機須替換」。</li>
+          <li>程式不內建任何假裝為真的數字;所有示範對照表標注示範。</li>
+        </ul>
+        <div class="small" style="margin-top:10px; border-top:1px solid var(--grid); padding-top:8px">
+          依離線+實驗定位,真實量測屬外部承擔;<strong>換算工具備妥即 SPEC-005 §7 #3 之關閉條件</strong>,不等待數據到位。
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <p style="font-weight:720; margin-bottom:6px">開放問題處置</p>
+      <ul>
+        <li>#3 chart 距離公差:<span class="tag done">關閉</span>(換算工具落地)</li>
+        <li>#1/#2/#4:不碰硬體 → 外部 / 延期<span class="tag done" style="margin-left:6px">關閉</span></li>
+        <li>#5:早已關閉<span class="tag done" style="margin-left:6px">關閉</span></li>
+      </ul>
+      <p style="font-weight:720; margin:14px 0 6px">下一步(視需要)</p>
+      <ul>
+        <li>待辦 #2:Sim focus 面雜訊 / 獨立無效標記注入</li>
+        <li>真實 SAD quality 到位後執行 <span class="mono">--qsigma</span> 標定流程</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>M2 階段報告 · 2026-07-17～19 · 測試 95/95</span><span>完</span></div>
+</section>
+
+</div></div>
+<div id="pageno">1 / 10</div>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const stage = document.getElementById("stage");
+  const pageno = document.getElementById("pageno");
+  let cur = 0;
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, j) => s.classList.toggle("active", j === cur));
+    pageno.textContent = (cur + 1) + " / " + slides.length;
+    if (location.hash !== "#" + (cur + 1)) history.replaceState(null, "", "#" + (cur + 1));
+  }
+  function fit() {
+    const s = Math.min(window.innerWidth / 1320, window.innerHeight / 760);
+    stage.style.transform = "scale(" + s + ")";
+  }
+  window.addEventListener("resize", fit);
+  window.addEventListener("keydown", (e) => {
+    if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+  });
+  stage.addEventListener("click", (e) => {
+    if (e.clientX > window.innerWidth / 2) show(cur + 1); else show(cur - 1);
+  });
+  const h = parseInt(location.hash.slice(1), 10);
+  fit();
+  show(isNaN(h) ? 0 : h - 1);
+})();
+</script>
+</body>
+</html>
