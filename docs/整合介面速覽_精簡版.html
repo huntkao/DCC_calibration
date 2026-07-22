@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCC_calibration · 整合介面速覽(精簡版)</title>
+<style>
+  :root{
+    --ink:#10181f; --sub:#3d4a56; --line:#c9d3dc; --line-soft:#e2e8ee;
+    --acc:#0b5cad; --acc-bg:#eef5fc;
+    --ok:#0a6e35; --ok-bg:#ecf7f0;
+    --warn:#8a5a00; --warn-bg:#fdf6e3;
+    --ext:#5a6672; --ext-bg:#f4f6f8;
+    --bad:#a01818; --bad-bg:#fbeeee;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; color:var(--ink); background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei","Segoe UI",sans-serif;
+    font-size:15px; line-height:1.7;}
+  .page{max-width:940px; margin:0 auto; padding:0 28px 70px;}
+  header.rep{border-bottom:3px solid var(--ink); padding:38px 0 20px; margin-bottom:8px;}
+  header.rep .kicker{font-size:13px; letter-spacing:.18em; color:var(--acc); font-weight:700;}
+  header.rep h1{font-size:27px; margin:6px 0 4px; line-height:1.3;}
+  header.rep .sub{color:var(--sub); font-size:14.5px;}
+
+  h2{font-size:19px; margin:44px 0 14px; padding:9px 14px; background:var(--ink); color:#fff; border-radius:6px;}
+  h2 .no{color:#9fc3e8; margin-right:10px; font-family:var(--mono);}
+  h3{font-size:16px; margin:24px 0 8px; padding-left:11px; border-left:4px solid var(--acc);}
+  p{margin:8px 0;}
+  code,.mono{font-family:var(--mono); font-size:.9em; background:var(--ext-bg); padding:1px 5px; border-radius:4px;}
+  strong{color:#000;}
+
+  pre.cmd{background:#0f1720; color:#e6edf3; border-radius:8px; padding:14px 18px; margin:12px 0;
+    font-family:var(--mono); font-size:13px; line-height:1.6; overflow-x:auto;}
+  pre.cmd .c{color:#7d8db3;} pre.cmd .f{color:#79c0ff;}
+
+  table.spec{width:100%; border-collapse:collapse; margin:12px 0 16px; font-size:13.5px;}
+  table.spec th{background:var(--ink); color:#fff; text-align:left; padding:7px 10px; font-weight:600;}
+  table.spec td{border:1px solid var(--line); padding:6px 10px; vertical-align:top;}
+  table.spec tr:nth-child(even) td{background:#f8fafc;}
+  table.spec td.c, table.spec th.c{text-align:center;}
+  table.spec td.m{font-family:var(--mono); font-size:12.5px; white-space:nowrap;}
+  .tablewrap{overflow-x:auto;}
+
+  .callout{border-radius:8px; padding:11px 15px; margin:14px 0; border:1px solid;}
+  .callout .t{font-weight:800; display:block; margin-bottom:2px;}
+  .align{background:var(--acc-bg); border-color:#a9c8e6;} .align .t{color:var(--acc);}
+  .warnbox{background:var(--warn-bg); border-color:#e0c689;} .warnbox .t{color:var(--warn);}
+  .okbox{background:var(--ok-bg); border-color:#a9d6ba;} .okbox .t{color:var(--ok);}
+
+  .tag{display:inline-block; font-size:11px; font-weight:800; border-radius:4px; padding:1px 7px;}
+  .tag.flex{background:var(--ok); color:#fff;}
+  .tag.lock{background:var(--bad); color:#fff;}
+
+  figure{margin:18px 0; text-align:center;}
+  figure svg{max-width:100%; height:auto;}
+  figcaption{font-size:12.5px; color:var(--sub); margin-top:5px;}
+
+  .eq{background:#f8fafc; border:1px solid var(--line-soft); border-left:4px solid var(--acc);
+    border-radius:6px; padding:9px 16px; margin:10px 0; font-family:var(--mono); font-size:14px;}
+  ul.tight{margin:6px 0; padding-left:22px;} ul.tight li{margin:3px 0;}
+
+  .flow{display:flex; flex-wrap:wrap; gap:0; align-items:stretch; margin:14px 0;}
+  .flow .step{flex:1 1 120px; min-width:110px; border:1.6px solid var(--acc); border-radius:8px;
+    background:var(--acc-bg); padding:8px; text-align:center; position:relative; margin-right:26px;}
+  .flow .step:last-child{margin-right:0;}
+  .flow .step::after{content:"▶"; position:absolute; right:-21px; top:50%; transform:translateY(-50%); color:var(--sub); font-size:13px;}
+  .flow .step:last-child::after{content:"";}
+  .flow .step .ph{font-weight:800; font-size:13px; color:var(--acc);}
+  .flow .step .nm{font-size:12px; line-height:1.4;}
+  .flow .step.ext2{border-style:dashed; border-color:var(--ext); background:var(--ext-bg);}
+  .flow .step.ext2 .ph{color:var(--ext);}
+
+  footer{margin-top:56px; border-top:2px solid var(--line); padding-top:12px; color:var(--sub); font-size:12px;}
+  @media print{.page{max-width:none;} h2{break-after:avoid;} figure,table.spec,.callout{break-inside:avoid;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="rep">
+  <div class="kicker">DCC_CALIBRATION · 整合介面速覽 · 給對接工程師</div>
+  <h1>DCC 校正工具 — 介面速覽(精簡版)</h1>
+  <div class="sub">收什麼、出什麼、怎麼跑、能調什麼、出錯怎麼看。核心算法只講到「足以信任輸出」為止。</div>
+</header>
+
+<!-- 1 一頁上手 -->
+<h2 id="s1"><span class="no">1</span>一句話 + 一張圖</h2>
+
+<p>把外部給的<strong>鏡頭掃描視差序列</strong>解成 <strong>8×6 DCC 係數表</strong>,驗證後打包成 <strong>993-byte EEPROM block</strong>。你只需餵一個 JSON、給一份 config,拿走五個輸出檔。中間不碰硬體、不算影像。</p>
+
+<div class="flow">
+  <div class="step ext2"><div class="ph">你的上游</div><div class="nm">SAD 模組產出<br><code>disp_seq.json</code></div></div>
+  <div class="step"><div class="ph">本工具</div><div class="nm">聚合→回歸→<br>交叉驗證→打包</div></div>
+  <div class="step ext2"><div class="ph">你的下游</div><div class="nm">拿 <code>block.bin</code><br>去燒錄</div></div>
+</div>
+
+<pre class="cmd"><span class="c"># 正式離線校正:餵外部序列 + config,指定輸出目錄</span>
+./build/src/dcc_cli/dcc_cal <span class="f">--seq</span> disp_seq.json <span class="f">--config</span> sensor_config.json <span class="f">--out</span> data/output/MOD001
+
+<span class="c"># 結束碼:0=PASS  1=判定FAIL  2=中止(E-xx)  3=參數錯誤</span></pre>
+
+<div class="callout align"><span class="t">GUI 等價</span><code>dcc_gui</code> 與 CLI 核心校正能力等價(同一 core);批次/實驗類旗標(<code>--fitter-scan</code>、<code>--qsigma</code>、<code>--chart-tol</code>)為 CLI 專屬。</div>
+
+<!-- 2 輸入契約 -->
+<h2 id="s2"><span class="no">2</span>輸入契約:disp_seq.json</h2>
+
+<p>你的上游要產這個檔(v1,已凍結)。<span class="tag flex">彈性</span>=你可以變、<span class="tag lock">鎖定</span>=契約不可違反:</p>
+
+<div class="tablewrap"><table class="spec">
+  <tr><th>欄位</th><th>內容</th><th>約束 / 彈性</th></tr>
+  <tr><td class="m">module_id</td><td>模組序號</td><td>與輸出資料夾名一致</td></tr>
+  <tr><td class="m">unit</td><td>視差單位</td><td><span class="tag flex">彈性</span> <code>"raw_pixel"</code> 或 <code>"pd_image_grid"</code>;須等於 config <code>input_disparity_unit</code></td></tr>
+  <tr><td class="m">pitch_x</td><td>節距(驗算用)</td><td>須等於 config 推得值(範例 16)</td></tr>
+  <tr><td class="m">dacs [N]</td><td>掃描 DAC 序列</td><td><span class="tag flex">彈性</span> N = config <code>num_positions</code>(5..50)· <span class="tag lock">鎖定</span> <strong>嚴格遞增(FAR→NEAR),方向不可反</strong></td></tr>
+  <tr><td class="m">grid_w × grid_h</td><td>SAD 輸出粒度</td><td><span class="tag flex">彈性</span> <strong>可 ≠ 8×6</strong>(如 144×108);工具自動聚合到 8×6</td></tr>
+  <tr><td class="m">data [N][h][w]</td><td>disparity,<code>null</code>=無效</td><td>無效 cell 送 <code>null</code>,不要送假值</td></tr>
+  <tr><td class="m">focus [N][h][w]</td><td>逐 cell 清晰度(必填)</td><td>量綱不拘,同序列內一致即可(只用峰值位置)</td></tr>
+  <tr><td class="m">quality</td><td>信心值(選填)</td><td><span class="tag flex">彈性</span> 有→加權聚合;沒有→等權,功能不減</td></tr>
+</table></div>
+
+<div class="callout warnbox"><span class="t">最容易踩的兩個對接錯</span>
+① <code>dacs</code> 長度必須等於 config 的 <code>num_positions</code>——不合會 <code>E-D01</code>。
+② 單位/pitch_x 必須與 config 一致——不合會 <code>E-D02</code>。兩者訊息都會直指原因。</div>
+
+<!-- 3 核心算法 -->
+<h2 id="s3"><span class="no">3</span>核心算法:為什麼輸出可信</h2>
+
+<p>每一區(共 48 區)把 N 個掃描點做線性回歸 <code>DAC = k·disparity + b</code>:<strong>斜率 k = DCC(要燒的值)</strong>,<strong>截距 b = 合焦點</strong>。閉式解、無迭代、確定性——同輸入必得同輸出(離線可 bit-exact 重算)。</p>
+
+<figure>
+<svg viewBox="0 0 620 250" xmlns="http://www.w3.org/2000/svg" aria-label="回歸:斜率即 DCC,截距即合焦點">
+  <line x1="60" y1="210" x2="580" y2="210" stroke="#c3c2b7" stroke-width="1.5"/>
+  <line x1="300" y1="210" x2="300" y2="22" stroke="#c3c2b7" stroke-width="1.5"/>
+  <text x="578" y="230" text-anchor="end" font-size="12" fill="#5a6672">disparity(raw_pixel)</text>
+  <text x="310" y="34" font-size="12" fill="#5a6672">DAC</text>
+  <line x1="86" y1="190" x2="556" y2="52" stroke="#0b5cad" stroke-width="2.5"/>
+  <g fill="#fff" stroke="#0b5cad" stroke-width="2">
+    <circle cx="104" cy="186" r="4"/><circle cx="156" cy="170" r="4"/><circle cx="206" cy="156" r="4"/>
+    <circle cx="256" cy="138" r="4"/><circle cx="300" cy="124" r="4"/><circle cx="348" cy="108" r="4"/>
+    <circle cx="400" cy="94" r="4"/><circle cx="452" cy="76" r="4"/><circle cx="504" cy="64" r="4"/><circle cx="548" cy="50" r="4"/>
+  </g>
+  <circle cx="300" cy="124" r="5" fill="#a01818"/>
+  <text x="110" y="112" font-size="13" fill="#0b5cad" font-weight="700">斜率 k = DCC(≈12.46 DAC/px)</text>
+  <text x="316" y="150" font-size="13" fill="#a01818" font-weight="700">截距 b = 合焦點(≈420)</text>
+</svg>
+<figcaption>圖|一區的解:斜率燒錄、截距驗證。48 區各解各的,10×48=480 樣本。</figcaption>
+</figure>
+
+<ul class="tight">
+  <li><strong>交叉驗證</strong>:截距 b 說的合焦點,要跟 focus 曲線峰值對質;逐區 <code>err = |b − focus_peak| / sweep_span</code> 全部 ≤ 容差才 PASS,否則 FAIL 附最差三區座標。</li>
+  <li><strong>fitter 可換</strong>:預設 <code>ols_forward</code> 在典型噪聲(σ≤0.5)下偏差可忽略;若上游噪聲大(σ≥1),config 改 <code>wls_inverse</code> 即可,不動程式。</li>
+  <li><strong>防護</strong>:區內有效樣本 &lt; 8 → <code>E-D03</code>;解出 k ≤ 0(幾乎都是 L/R 對調)→ <code>E-E01</code>。</li>
+</ul>
+
+<!-- 4 單位契約 -->
+<h2 id="s4"><span class="no">4</span>單位契約:16 倍陷阱(對接最關鍵)</h2>
+
+<p>視差有 <code>raw_pixel</code> 與 <code>pd_image_grid</code> 兩種,差 <code>pitch_x</code>(=16)倍。搞錯一次 DCC 就錯 16 倍。全案只有<strong>兩個轉換點</strong>,其餘一律 raw_pixel:</p>
+
+<figure>
+<svg viewBox="0 0 620 130" xmlns="http://www.w3.org/2000/svg" aria-label="兩個單位轉換閥門">
+  <rect x="8" y="35" width="130" height="66" rx="8" fill="#f4f6f8" stroke="#5a6672" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="73" y="62" text-anchor="middle" font-size="12.5" font-weight="700" fill="#5a6672">輸入序列</text>
+  <text x="73" y="82" text-anchor="middle" font-size="11" fill="#3d4a56">兩種單位皆可</text>
+  <rect x="165" y="30" width="120" height="76" rx="8" fill="#eef5fc" stroke="#0b5cad" stroke-width="2"/>
+  <text x="225" y="55" text-anchor="middle" font-size="12.5" font-weight="800" fill="#0b5cad">閥門①讀取端</text>
+  <text x="225" y="74" text-anchor="middle" font-size="11.5" fill="#10181f">→ raw_pixel</text>
+  <text x="225" y="92" text-anchor="middle" font-size="10" fill="#5a6672">input_disparity_unit</text>
+  <rect x="312" y="30" width="130" height="76" rx="8" fill="#ecf7f0" stroke="#0a6e35" stroke-width="2"/>
+  <text x="377" y="60" text-anchor="middle" font-size="13" font-weight="800" fill="#0a6e35">dcc_core</text>
+  <text x="377" y="80" text-anchor="middle" font-size="11.5" fill="#10181f">一律 raw_pixel</text>
+  <rect x="469" y="30" width="120" height="76" rx="8" fill="#eef5fc" stroke="#0b5cad" stroke-width="2"/>
+  <text x="529" y="55" text-anchor="middle" font-size="12.5" font-weight="800" fill="#0b5cad">閥門②打包端</text>
+  <text x="529" y="74" text-anchor="middle" font-size="11.5" fill="#10181f">→ 輸出單位</text>
+  <text x="529" y="92" text-anchor="middle" font-size="9.5" fill="#5a6672">output_disparity_unit</text>
+  <line x1="138" y1="68" x2="163" y2="68" stroke="#3d4a56" stroke-width="1.6"/>
+  <line x1="285" y1="68" x2="310" y2="68" stroke="#3d4a56" stroke-width="1.6"/>
+  <line x1="442" y1="68" x2="467" y2="68" stroke="#3d4a56" stroke-width="1.6"/>
+</svg>
+<figcaption>圖|轉換只發生在讀取端與打包端;report.json 內建 <code>dcc_ratio_check</code>(=pitch_x=16)自動稽核漏乘/重複乘。</figcaption>
+</figure>
+
+<div class="callout align"><span class="t">下游單位還沒定案也沒關係</span>
+runtime PDLIB 要哪種單位由 config <code>output_disparity_unit</code> 決定——定案那天翻一個值即可,校正結果不用重跑程式。</div>
+
+<!-- 5 輸出 -->
+<h2 id="s5"><span class="no">5</span>輸出:五個檔</h2>
+
+<div class="tablewrap"><table class="spec">
+  <tr><th>檔案</th><th>給誰</th><th>用途</th></tr>
+  <tr><td class="m">block.bin</td><td>燒錄</td><td>993 bytes 定長、Big-Endian、定點編碼;尾端 checksum</td></tr>
+  <tr><td class="m">block.json</td><td>跨平台</td><td>與 bin 同源的機器可讀等價檔(layout + 值);確定性無時間戳</td></tr>
+  <tr><td class="m">block.txt</td><td>人核對</td><td>繁中:layout 表 + gain 表 + DCC 物理值/hex 兩張 8×6 表</td></tr>
+  <tr><td class="m">report.json</td><td>稽核/重算</td><td>48 區完整 map:dcc(雙單位)、intercept、r²、err、最差三區、config 快照+hash</td></tr>
+  <tr><td class="m">report.md</td><td>快速判讀</td><td>判定與關鍵數字摘要</td></tr>
+</table></div>
+
+<h3>block.bin layout</h3>
+<div class="tablewrap"><table class="spec">
+  <tr><th>offset</th><th class="c">bytes</th><th>內容</th><th>編碼</th></tr>
+  <tr><td class="m">0x0000</td><td class="c">2</td><td>version = 4</td><td>uint16 BE</td></tr>
+  <tr><td class="m">0x0002</td><td class="c">4</td><td>gain W, H</td><td>uint16 ×2</td></tr>
+  <tr><td class="m">0x0006</td><td class="c">442</td><td>Left Gain[221]</td><td>Q10 BE</td></tr>
+  <tr><td class="m">0x01C0</td><td class="c">442</td><td>Right Gain[221]</td><td>Q10 BE</td></tr>
+  <tr><td class="m">0x037A</td><td class="c">2</td><td>DCC Q format</td><td>uint16(config Q4..Q8,預設 Q6)</td></tr>
+  <tr><td class="m">0x037C</td><td class="c">4</td><td>DCC W, H</td><td>uint16 ×2</td></tr>
+  <tr><td class="m">0x0380</td><td class="c">96</td><td>DCC[48]</td><td>Q(q) BE(12.46→0x031D @Q6)</td></tr>
+  <tr><td class="m">0x03E0</td><td class="c">1</td><td>checksum = Σ前段 %256</td><td>uint8</td></tr>
+</table></div>
+<p style="font-size:13px; color:var(--sub)">合計 993 bytes。注意:<strong>intercept(合焦點)不進 block</strong>——它是驗證用副產物,完整值在 <code>report.json</code>。</p>
+
+<!-- 6 config 彈性 -->
+<h2 id="s6"><span class="no">6</span>config 彈性速查:情境 → 動哪個</h2>
+
+<div class="tablewrap"><table class="spec">
+  <tr><th>當上游條件變了</th><th>你只需改</th></tr>
+  <tr><td>SAD 換輸出粒度(如 144×108)</td><td class="m">序列自帶 grid + aggregation.method / min_valid_ratio</td></tr>
+  <tr><td>掃描點數加密/減少</td><td class="m">dcc.num_positions(5..50)</td></tr>
+  <tr><td>視差單位不同</td><td class="m">dcc.input_disparity_unit</td></tr>
+  <tr><td>下游 PDLIB 單位定案</td><td class="m">dcc.output_disparity_unit</td></tr>
+  <tr><td>上游噪聲偏大(σ≥1)</td><td class="m">regression.fitter=wls_inverse + weight_gamma</td></tr>
+  <tr><td>換 sensor 容差等級</td><td class="m">dcc.tolerance(0.20 / 0.15 / 0.10)</td></tr>
+  <tr><td>EEPROM 精度取捨</td><td class="m">dcc.q_format(4..8)</td></tr>
+  <tr><td>掃描窗端點</td><td class="m">vcm.af_cal_inf/macro + dcc.far/near_margin(端點由公式推導,不寫死)</td></tr>
+</table></div>
+<p style="font-size:13px; color:var(--sub)">原則:所有可調參數都在 config,不散落程式常數。<strong>刻意不可調</strong>:掃描方向(VCM 磁滯)、core 內單位(raw_pixel 唯一)——這兩處是設計面鎖定。</p>
+
+<!-- 7 錯誤碼 -->
+<h2 id="s7"><span class="no">7</span>錯誤碼速查(對接除錯用)</h2>
+
+<div class="tablewrap"><table class="spec">
+  <tr><th>碼</th><th>意義</th><th>對接時先查</th></tr>
+  <tr><td class="m">E-A01</td><td>AF 校正值缺失/非法</td><td>config 的 vcm.af_cal_inf/macro</td></tr>
+  <tr><td class="m">E-C01</td><td>sweep 超出 DAC 範圍</td><td>margin 或 AF 值</td></tr>
+  <tr><td class="m">E-D01</td><td>序列維度/形狀閉環驗算失敗</td><td>disp_seq 的 N / grid 與 config 對不上</td></tr>
+  <tr><td class="m">E-D02</td><td>DAC/unit/pitch 與規劃或 config 不一致</td><td>外部模組輸出 vs config 單位/節距/dacs</td></tr>
+  <tr><td class="m">E-D03</td><td>區域有效樣本不足</td><td>chart 覆蓋不足 / 髒污 / 局部過曝</td></tr>
+  <tr><td class="m">E-E01</td><td>回歸斜率非正</td><td><strong>LEFT/RIGHT 影像顛倒</strong></td></tr>
+  <tr><td class="m">E-F01</td><td>focus 峰值出界</td><td>chart 距離擺放 / 場曲</td></tr>
+  <tr><td class="m">E-G01</td><td>Q-format 溢位</td><td>q 值與 DCC 量級不匹配</td></tr>
+</table></div>
+
+<div class="callout okbox"><span class="t">失敗現場可重放</span>
+任何中止都會落盤 <code>abort_dump.json</code>(序列 + 參數快照)+ 雙 sink log。一筆失敗就是一筆可離線重跑的測資,回報問題時附上這個目錄即可。</div>
+
+<footer>
+DCC_calibration · 整合介面速覽(精簡版)· 依 SPEC-002/003/004 介面契約整理 · 零外部資源(系統字型)
+</footer>
+
+</div>
+</body>
+</html>
